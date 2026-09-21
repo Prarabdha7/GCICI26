@@ -1,0 +1,58 @@
+# --- secrets: never commit ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+service-account*.json
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.python-version
+
+# --- databases ---
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# --- generated media (rebuildable, large) ---
+assets/generated/
+*.mp4.tmp
+TEMP_MPY_*
+
+# --- langgraph / caches ---
+.langgraph_api/
+checkpoints.sqlite
+.cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- node (review dashboard, if it grows one) ---
+node_modules/
+dist/
+.vite/
+
+# --- editors / os ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# --- logs ---
+*.log
+logs/
+
+# sandbox artefacts (stale git lock files that could not be unlinked)
+_to_delete/
