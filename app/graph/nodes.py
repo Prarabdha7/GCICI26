@@ -10,16 +10,29 @@ import logging
 
 from app.agents import prompts
 from app.config import settings
+from app.db.database import session_scope
 from app.graph.state import MarketingState
 from app.llm.client import COMPLIANCE_SCHEMA, structured_call, text_call
+from app.memory.retrieval import format_guidance, get_recent_feedback
 
 log = logging.getLogger(__name__)
+
+
+def memory_retrieval_node(state: MarketingState) -> dict:
+    """Runs before content_node on every generation (not on retries)."""
+    with session_scope() as db:
+        entries = get_recent_feedback(db, brand=state["brand"], platform=state["platform"])
+    return {"feedback_guidance": format_guidance(entries)}
 
 
 def content_node(state: MarketingState) -> dict:
     """Generate (or rewrite) the draft. Injects prior compliance violations
     into the rewrite prompt so a retry is never identical to the last draft."""
-    system = prompts.content_system_prompt(brand=state["brand"], platform=state["platform"])
+    system = prompts.content_system_prompt(
+        brand=state["brand"],
+        platform=state["platform"],
+        feedback_guidance=state.get("feedback_guidance", ""),
+    )
     user = prompts.content_user_prompt(
         brand=state["brand"],
         platform=state["platform"],
