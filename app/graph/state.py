@@ -17,3 +17,4 @@ class MarketingState(TypedDict):
     compliance_errors: list[str]
     retry_count: int
     feedback_guidance: str
+    media_path: str | None

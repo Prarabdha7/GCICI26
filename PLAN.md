@@ -17,8 +17,8 @@
 | --- | --- | --- | --- |
 | 1 | Foundation — repo, FastAPI, database schema | `main` | `[x]` verified locally, committed |
 | 2 | LangGraph state machine and core agents | `main` | `[x]` merged via PR #1 |
-| 3 | Closed-loop memory engine | `feature/memory-engine` | `[~]` retrieval + injection built, awaiting review |
-| 4 | Video assembly pipeline | `feature/video-pipeline` | `[ ]` |
+| 3 | Closed-loop memory engine | `main` | `[x]` merged via PR #2 |
+| 4 | Video assembly pipeline | `feature/video-pipeline` | `[~]` edge-tts + moviepy assembly built, awaiting review |
 | 5 | Lead generation and research scraping | `feature/lead-gen` | `[ ]` |
 | 6 | Human review dashboard | `feature/review-ui` | `[ ]` |
 | 7 | Project 2 — auto-publisher worker (bonus) | `feature/auto-publisher` | `[ ]` |
@@ -119,9 +119,8 @@ PostgreSQL for the demo is a one-line env change. Three tables only —
       filtering/ordering/limits, the exact injection string, and a full graph
       run proving `memory_retrieval_node` populates `feedback_guidance` before
       `content_node` reads it
-- [ ] **PAUSED FOR REVIEW** — `app/memory/store.py`, the `error_tag` UI, and the
-      metrics panel are intentionally deferred to Phase 6 (they need the review
-      dashboard's reject/edit action to exist). Awaiting sign-off before Phase 4.
+- [x] **MERGED** — PR #2, squash-merged to `main` (`cc6d034`). `app/memory/store.py`,
+      the `error_tag` UI, and the metrics panel remain deferred to Phase 6.
 
 ---
 
@@ -130,13 +129,28 @@ PostgreSQL for the demo is a one-line env change. Three tables only —
 **Goal:** a real MP4 reel with voiceover, assembled locally, no paid API.
 **Depends on:** Phase 2.
 
-- [ ] Script generation — spoken VO script alongside the caption
-- [ ] `app/media/tts.py` — `edge-tts` synthesis, voice selected by `language`
-- [ ] `app/media/video.py` — `VideoFileClip` + `.set_audio()`, trimmed to audio duration
-- [ ] Background clips committed to `assets/video/`; output to `assets/generated/`
-- [ ] `media_path` written back to `content_queue`
+- [ ] Script generation — a dedicated spoken VO script alongside the caption;
+      deferred — `video_assembly_node` currently narrates `draft_content` directly
+- [x] `app/media/assembly.py` — combines TTS + assembly (not split into
+      `tts.py`/`video.py`); `synthesize_voiceover()` uses `edge-tts`, voice
+      selected by `language` (`en`/`ms`/`id`/`th`/`zh`, all five covered)
+- [x] `assemble_video()` — `set_audio()` (moviepy 1.x API, per the pin), trimmed
+      to audio duration via `.subclip(0, audio.duration)`
+- [~] Background: a real clip via `background_path` is supported, but
+      `assets/video/` still holds no committed footage, so the default path
+      uses a solid-color `ColorClip` — swap in real clips when they land.
+      Output goes to `temp/` (git-ignored), not yet `assets/generated/`
+- [x] `video_assembly_node` in `app/graph/nodes.py` writes `media_path`; not
+      wired into `build_graph()`'s default topology yet — nothing currently
+      populates `content_type`/`platform` to gate "this needs a video", and
+      running it unconditionally would call edge-tts for every text post
 - [ ] `ffmpeg` availability checked at startup with a clear error if missing
-- [ ] Verified: end-to-end reel renders and plays, in at least two languages
+- [x] Verified: `tests/test_phase4.py` — 10/10 passing (edge-tts and moviepy
+      mocked); a real, unmocked run also confirmed end-to-end — `assemble_video()`
+      produced a 74 KB playable MP4 with genuine edge-tts narration in `en`
+- [ ] **PAUSED FOR REVIEW** — dedicated VO script generation, real background
+      footage, `assets/generated/` output, graph wiring, and the `ffmpeg`
+      startup check are intentionally deferred. Awaiting sign-off before Phase 5.
 
 ---
 

@@ -61,6 +61,9 @@ even if Project 2 is never built.**
 5. Never force-push `main`. Never rewrite published history.
 6. Never commit generated media (`assets/generated/`), databases (`*.db`), or virtualenvs.
 7. Ask before `git rm`, `git reset --hard`, or anything destructive.
+8. **NEVER delete local or remote feature branches after merging PRs or completing
+   phases.** Do NOT pass `--delete-branch` to `gh pr merge`. Retain ALL feature
+   branches indefinitely on GitHub until the user explicitly instructs otherwise.
 
 ---
 
