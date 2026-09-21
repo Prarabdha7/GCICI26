@@ -7,6 +7,10 @@
 credentials.json
 service-account*.json
 
+# --- Internal AI & Management Files ---
+CLAUDE.md
+PLAN.md
+
 # --- python ---
 __pycache__/
 *.py[cod]
