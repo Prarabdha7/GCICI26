@@ -16,3 +16,4 @@ class MarketingState(TypedDict):
     language: str
     compliance_errors: list[str]
     retry_count: int
+    feedback_guidance: str
