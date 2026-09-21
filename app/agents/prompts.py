@@ -79,3 +79,38 @@ def compliance_system_prompt(*, brand: str, rubric: str) -> str:
 
 def compliance_user_prompt(*, draft_content: str) -> str:
     return f"Evaluate this marketing copy:\n\n{draft_content}"
+
+
+def research_system_prompt(*, brand: str) -> str:
+    voice = BRAND_VOICE.get(brand, "")
+    return (
+        f"You are the research agent for {brand}, an InsurTech brand.\n{voice}\n\n"
+        "Produce a structured competitive intelligence digest from the source "
+        "material: competitor moves, market gaps, and messaging angles this "
+        "brand can use. Plain text, organised under short headers."
+    )
+
+
+def research_user_prompt(*, niche: str, country: str, context: str) -> str:
+    return (
+        f"Target niche: {niche}\nMarket: {country}\n\n"
+        f"Source material (search results and scraped pages):\n{context}"
+    )
+
+
+def lead_scoring_system_prompt(*, brand: str) -> str:
+    voice = BRAND_VOICE.get(brand, "")
+    return (
+        f"You are the lead-scoring agent for {brand}, an InsurTech brand.\n{voice}\n\n"
+        "Score how well a prospect fits this brand's target segment, 0 (no fit) "
+        "to 100 (ideal fit), and write a one-paragraph outreach message "
+        'personalised to the prospect. Return only JSON: {"fit_score": int, '
+        '"score_rationale": str, "outreach_draft": str}.'
+    )
+
+
+def lead_scoring_user_prompt(*, company_name: str, website: str, research_notes: str) -> str:
+    return (
+        f"Prospect: {company_name}\nWebsite: {website}\n\n"
+        f"Competitive/market context:\n{research_notes}"
+    )

@@ -18,3 +18,19 @@ class MarketingState(TypedDict):
     retry_count: int
     feedback_guidance: str
     media_path: str | None
+    status: str
+    content_id: int | None
+
+
+class LeadGenState(TypedDict):
+    """Threaded through the lead-gen graph. research and discovery run in
+    parallel and converge on scoring_outreach (app/graph/lead_gen_graph.py)."""
+
+    brand: str
+    niche: str
+    country: str
+    research_notes: str
+    discovered: list[dict]
+    enriched: list[dict]
+    leads: list[dict]
+    lead_ids: list[int]

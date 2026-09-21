@@ -11,6 +11,8 @@ import logging
 from app.agents import prompts
 from app.config import settings
 from app.db.database import session_scope
+from app.db.models import ContentStatus
+from app.db.persist import create_content_queue_row
 from app.graph.state import MarketingState
 from app.llm.client import COMPLIANCE_SCHEMA, structured_call, text_call
 from app.media.assembly import assemble_video
@@ -82,9 +84,27 @@ def compliance_gate_node(state: MarketingState) -> dict:
     return {"compliance_errors": violations, "retry_count": retry_count}
 
 
+def persist_node(state: MarketingState) -> dict:
+    """Writes the compliant draft to content_queue with status=pending."""
+    with session_scope() as db:
+        row = create_content_queue_row(
+            db,
+            brand=state["brand"],
+            platform=state["platform"],
+            language=state["language"],
+            draft_content=state["draft_content"],
+            media_path=state.get("media_path"),
+            compliance_errors=state.get("compliance_errors", []),
+            retry_count=state.get("retry_count", 0),
+        )
+        content_id = row.id
+    log.info("persist_node brand=%s content_id=%s", state["brand"], content_id)
+    return {"content_id": content_id, "status": ContentStatus.PENDING.value}
+
+
 def video_assembly_node(state: MarketingState) -> dict:
-    """For video assets (Reels, TikTok): voiceover + background, no persist_node
-    yet, so the graph does not call this node by default (CLAUDE.md section 8)."""
+    """For video assets (Reels, TikTok). Not wired into build_graph()'s default
+    topology yet — nothing gates "this needs a video" (CLAUDE.md section 8)."""
     video_path = assemble_video(script=state["draft_content"], language=state["language"])
     log.info("video_assembly_node brand=%s media_path=%s", state["brand"], video_path)
     return {"media_path": str(video_path)}
