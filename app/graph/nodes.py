@@ -13,6 +13,7 @@ from app.config import settings
 from app.db.database import session_scope
 from app.graph.state import MarketingState
 from app.llm.client import COMPLIANCE_SCHEMA, structured_call, text_call
+from app.media.assembly import assemble_video
 from app.memory.retrieval import format_guidance, get_recent_feedback
 
 log = logging.getLogger(__name__)
@@ -79,6 +80,14 @@ def compliance_gate_node(state: MarketingState) -> dict:
         state["brand"], retry_count, violations,
     )
     return {"compliance_errors": violations, "retry_count": retry_count}
+
+
+def video_assembly_node(state: MarketingState) -> dict:
+    """For video assets (Reels, TikTok): voiceover + background, no persist_node
+    yet, so the graph does not call this node by default (CLAUDE.md section 8)."""
+    video_path = assemble_video(script=state["draft_content"], language=state["language"])
+    log.info("video_assembly_node brand=%s media_path=%s", state["brand"], video_path)
+    return {"media_path": str(video_path)}
 
 
 def manual_intervention_node(state: MarketingState) -> dict:

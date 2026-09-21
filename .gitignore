@@ -27,6 +27,7 @@ env/
 
 # --- generated media (rebuildable, large) ---
 assets/generated/
+temp/
 *.mp4.tmp
 TEMP_MPY_*
 
