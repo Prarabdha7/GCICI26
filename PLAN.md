@@ -15,8 +15,8 @@
 
 | Phase | Title | Branch | Status |
 | --- | --- | --- | --- |
-| 1 | Foundation — repo, FastAPI, database schema | `feature/foundation` | `[~]` built, awaiting local run + review |
-| 2 | LangGraph state machine and core agents | `feature/core-graph` | `[ ]` |
+| 1 | Foundation — repo, FastAPI, database schema | `main` | `[x]` verified locally, committed |
+| 2 | LangGraph state machine and core agents | `feature/core-graph` | `[~]` content/localization/compliance cycle built, awaiting review |
 | 3 | Closed-loop memory engine | `feature/memory-engine` | `[ ]` |
 | 4 | Video assembly pipeline | `feature/video-pipeline` | `[ ]` |
 | 5 | Lead generation and research scraping | `feature/lead-gen` | `[ ]` |
@@ -48,22 +48,11 @@ endpoint. Everything later hangs off this.
 - [x] `tests/test_phase1.py` — smoke tests for settings, gate schema, API models
 - [x] Verified: all 17 modules compile; settings, the compliance-gate schema contract
       and the API response models pass their unit checks
-- [!] **Not yet verified: `pip install`, `init_db`, `/health`.** PyPI is unreachable
-      from the sandbox this was built in (egress policy returns 403), so FastAPI and
-      SQLAlchemy could not be imported. Run this locally to close it out:
-      ```bash
-      python3 -m venv .venv && source .venv/bin/activate
-      pip install -r requirements.txt
-      python -m scripts.init_db
-      pytest tests/ -v
-      uvicorn app.main:app --reload   # then GET /health
-      ```
-- [ ] **PAUSED FOR REVIEW** — awaiting sign-off before Phase 2
-
-**Environment note:** the Cowork sandbox cannot unlink files in this folder, so a
-stale `.git/index.lock` keeps reappearing and `_to_delete/` holds two dead files.
-Both are harmless and git-ignored. Clear them from your own terminal:
-`rm -f .git/index.lock && rm -rf _to_delete`
+- [x] Verified locally: `pip install -r requirements.txt`, `python -m scripts.init_db`
+      and `pytest tests/ -v` all pass (14/14 Phase 1 tests green) in a `venv` on the
+      owner's machine — the sandbox's PyPI egress block no longer applies.
+- [x] **PHASE 1 SIGNED OFF** — committed to `main` as
+      `feat: initialize phase 1 architecture, database schema, and test suite`
 
 **Notes:** SQLite for development via a single `DATABASE_URL`; switching to
 PostgreSQL for the demo is a one-line env change. Three tables only — 
@@ -77,18 +66,34 @@ PostgreSQL for the demo is a one-line env change. Three tables only —
 **Goal:** the cyclic pipeline runs end to end and writes a row to `content_queue`.
 **Depends on:** Phase 1.
 
-- [ ] `app/graph/state.py` — `MarketingState` TypedDict
-- [ ] `app/agents/prompts.py` — brand voice cards for Jade, Jaguar Transit, DoctorShield
-- [ ] `research_node` — competitor/market intel for the seed topic
-- [ ] `content_node` — per-brand, per-platform generation; multi-format (post → carousel → thread → caption) with A/B variants
-- [ ] `localization_node` — tone and cultural adaptation across `en`/`ms`/`id`/`th`/`zh`
-- [ ] `compliance_gate_node` — structured `{is_compliant, violations}`, temperature 0, grounded in `compliance_rubric.md`
-- [ ] `route_after_compliance` — conditional edge: pass → persist, fail → content
-- [ ] Circuit breaker — `retry_count > 3` routes to `manual_intervention`
-- [ ] Previous `compliance_errors` injected into the rewrite prompt on every cycle
-- [ ] `persist_node` — writes the row with `status = pending`
-- [ ] Graph compiled with a checkpointer; state transitions logged
-- [ ] Verified: a deliberately non-compliant draft cycles, then trips the breaker
+- [x] `app/graph/state.py` — `MarketingState` TypedDict (core fields: `draft_content`,
+      `brand`, `platform`, `language`, `compliance_errors`, `retry_count`); additive
+      fields (`topic`, `content_type`, `research_notes`, `feedback_guidance`,
+      `media_path`, `status`, `content_id`) land with the phases that need them
+- [x] `app/agents/prompts.py` — brand voice cards for Jade, Jaguar Transit, DoctorShield
+      and prompt builders for the content, localization and compliance agents
+- [ ] `research_node` — deferred; not in this phase's scope, needed before Phase 5
+- [x] `content_node` — per-brand, per-platform generation (single-format for now;
+      multi-format/A-B variants deferred to a later pass)
+- [x] `localization_node` — tone and cultural adaptation, branches on `language`
+- [x] `compliance_gate_node` — structured `{is_compliant, violations}`, temperature 0,
+      loads `compliance_rubric.md` from disk on every call
+- [x] `route_after_compliance` — conditional edge: pass → END, fail → content
+      (persist_node lands in a later phase; compliant drafts end the graph for now)
+- [x] Circuit breaker — `retry_count > settings.max_compliance_retries` (3) routes to
+      `manual_intervention`
+- [x] Previous `compliance_errors` injected into the rewrite prompt on every cycle
+- [ ] `persist_node` — deferred; no `content_queue` row is written yet, so
+      `manual_intervention_node` is currently a logging-only terminal node
+- [x] Graph compiled with a checkpointer (`MemorySaver`, swappable); every node and
+      the routing decision logs `brand`, `retry_count`, and violations
+- [x] Verified: `tests/test_phase2.py` — 11/11 passing, including a deliberately
+      always-non-compliant draft that cycles exactly `max_retries + 1` times and
+      then trips the breaker into `manual_intervention` without looping forever
+- [ ] **PAUSED FOR REVIEW** — `research_node`, `memory_retrieval_node` and
+      `persist_node` were intentionally left out of this pass (not requested;
+      the latter two are Phase 3's job per the memory-engine dependency).
+      Awaiting sign-off before continuing.
 
 ---
 
