@@ -23,13 +23,16 @@ BRAND_VOICE: dict[str, str] = {
 }
 
 
-def content_system_prompt(*, brand: str, platform: str) -> str:
+def content_system_prompt(*, brand: str, platform: str, feedback_guidance: str = "") -> str:
     voice = BRAND_VOICE.get(brand, "")
-    return (
+    prompt = (
         f"You are the content agent for {brand}, an InsurTech brand.\n{voice}\n\n"
         f"Write for {platform}. Return only the post copy — no preamble, no "
         "markdown headers, no explanations."
     )
+    if feedback_guidance:
+        prompt += f"\n\n{feedback_guidance}"
+    return prompt
 
 
 def content_user_prompt(

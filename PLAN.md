@@ -16,8 +16,8 @@
 | Phase | Title | Branch | Status |
 | --- | --- | --- | --- |
 | 1 | Foundation — repo, FastAPI, database schema | `main` | `[x]` verified locally, committed |
-| 2 | LangGraph state machine and core agents | `feature/core-graph` | `[~]` content/localization/compliance cycle built, awaiting review |
-| 3 | Closed-loop memory engine | `feature/memory-engine` | `[ ]` |
+| 2 | LangGraph state machine and core agents | `main` | `[x]` merged via PR #1 |
+| 3 | Closed-loop memory engine | `feature/memory-engine` | `[~]` retrieval + injection built, awaiting review |
 | 4 | Video assembly pipeline | `feature/video-pipeline` | `[ ]` |
 | 5 | Lead generation and research scraping | `feature/lead-gen` | `[ ]` |
 | 6 | Human review dashboard | `feature/review-ui` | `[ ]` |
@@ -90,10 +90,9 @@ PostgreSQL for the demo is a one-line env change. Three tables only —
 - [x] Verified: `tests/test_phase2.py` — 11/11 passing, including a deliberately
       always-non-compliant draft that cycles exactly `max_retries + 1` times and
       then trips the breaker into `manual_intervention` without looping forever
-- [ ] **PAUSED FOR REVIEW** — `research_node`, `memory_retrieval_node` and
-      `persist_node` were intentionally left out of this pass (not requested;
-      the latter two are Phase 3's job per the memory-engine dependency).
-      Awaiting sign-off before continuing.
+- [x] **MERGED** — PR #1, squash-merged to `main` (`f4db61b`). `research_node`
+      and `persist_node` remain deferred; `memory_retrieval_node` landed in
+      Phase 3 instead.
 
 ---
 
@@ -102,14 +101,27 @@ PostgreSQL for the demo is a one-line env change. Three tables only —
 **Goal:** the system demonstrably stops repeating a mistake a human flagged.
 **Depends on:** Phase 2.
 
-- [ ] `app/memory/store.py` — write a `feedback_memory` row on every reject/edit
-- [ ] `app/memory/retrieval.py` — top 5 most recent notes for `brand` + `platform`
-- [ ] `memory_retrieval_node` wired in **before** `content_node`
-- [ ] Exact injection contract: `CRITICAL GUIDANCE: Previously, human reviewers rejected content for this brand due to: {fetched_notes}. You MUST NOT repeat these mistakes.`
-- [ ] No guidance block injected when there is no feedback yet
-- [ ] Controlled `error_tag` vocabulary defined and enforced in the UI
-- [ ] Metrics: rejection rate over time, retries per asset, human edit distance
-- [ ] Verified: reject for "too salesy", re-run, confirm the next draft changes
+- [ ] `app/memory/store.py` — write a `feedback_memory` row on every reject/edit;
+      deferred, this needs the review dashboard's reject/edit action (Phase 6)
+- [x] `app/memory/retrieval.py` — `get_recent_feedback()`, top N (default
+      `settings.feedback_memory_limit` = 5) most recent notes for `brand` + `platform`
+- [x] `memory_retrieval_node` wired in **before** `content_node`; retry cycles
+      loop back to `content_node` directly and do not re-run retrieval
+- [x] Exact injection contract implemented in `format_guidance()`:
+      `CRITICAL GUIDANCE: Previously, human reviewers rejected content for this brand due to: {fetched_notes}. You MUST NOT repeat these mistakes.`
+- [x] No guidance block injected when there is no feedback yet (`format_guidance([])`
+      returns `""`, and `content_system_prompt` only appends a non-empty block)
+- [ ] Controlled `error_tag` vocabulary — already defined as `ErrorTag` in
+      `app/db/models.py`; UI enforcement is Phase 6's job
+- [ ] Metrics: rejection rate over time, retries per asset, human edit distance —
+      deferred to the review dashboard (Phase 6)
+- [x] Verified: `tests/test_phase3.py` — 14/14 passing, covering retrieval
+      filtering/ordering/limits, the exact injection string, and a full graph
+      run proving `memory_retrieval_node` populates `feedback_guidance` before
+      `content_node` reads it
+- [ ] **PAUSED FOR REVIEW** — `app/memory/store.py`, the `error_tag` UI, and the
+      metrics panel are intentionally deferred to Phase 6 (they need the review
+      dashboard's reject/edit action to exist). Awaiting sign-off before Phase 4.
 
 ---
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterator
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -37,6 +38,16 @@ SessionLocal = sessionmaker(
 
 def get_db() -> Iterator[Session]:
     """FastAPI dependency. All database access goes through this."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@contextmanager
+def session_scope() -> Iterator[Session]:
+    """Session access for code outside a FastAPI request (graph nodes, workers)."""
     db = SessionLocal()
     try:
         yield db

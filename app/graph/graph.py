@@ -1,15 +1,17 @@
 """Graph assembly: wires the nodes and the compliance retry cycle together.
 
-    START -> content -> localization -> compliance_gate -> route_after_compliance
-                              ^                                  |         |
-                              |__________ non-compliant __________|         |
-                                       (retry_count <= max)                |
-                                                                            v
-                                                          manual_intervention -> END
-                                                     (retry_count > max, circuit breaker)
+    START -> memory_retrieval -> content -> localization -> compliance_gate -> route_after_compliance
+                                      ^                                              |         |
+                                      |______________ non-compliant _________________|         |
+                                               (retry_count <= max)                            |
+                                                                                                 v
+                                                                               manual_intervention -> END
+                                                                          (retry_count > max, circuit breaker)
 
-Compliant drafts route straight to END; persisting the row to `content_queue`
-is Phase 3's `persist_node`, added once the memory engine lands.
+memory_retrieval runs once, before the first draft — not on retry cycles, which
+loop straight back to content_node (CLAUDE.md section 4). Compliant drafts
+route straight to END; persisting the row to `content_queue` is a later phase's
+`persist_node`.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from app.graph.nodes import (
     content_node,
     localization_node,
     manual_intervention_node,
+    memory_retrieval_node,
 )
 from app.graph.routing import COMPLIANT, CONTENT, MANUAL_INTERVENTION, route_after_compliance
 from app.graph.state import MarketingState
@@ -32,12 +35,14 @@ from app.graph.state import MarketingState
 def build_graph(checkpointer: BaseCheckpointSaver | None = None) -> CompiledStateGraph:
     graph = StateGraph(MarketingState)
 
+    graph.add_node("memory_retrieval", memory_retrieval_node)
     graph.add_node("content", content_node)
     graph.add_node("localization", localization_node)
     graph.add_node("compliance_gate", compliance_gate_node)
     graph.add_node("manual_intervention", manual_intervention_node)
 
-    graph.add_edge(START, "content")
+    graph.add_edge(START, "memory_retrieval")
+    graph.add_edge("memory_retrieval", "content")
     graph.add_edge("content", "localization")
     graph.add_edge("localization", "compliance_gate")
     graph.add_conditional_edges(
