@@ -102,6 +102,12 @@ app.include_router(actions_router)
 app.include_router(dashboard_router)
 
 
+@app.get("/", include_in_schema=False)
+def root_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/app/")
+
+
 @app.get("/health", tags=["meta"])
 def health() -> dict[str, object]:
     """Liveness probe. Also reports which provider and database are wired up."""

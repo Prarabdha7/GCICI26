@@ -33,37 +33,48 @@ def _brand_key(brand: str) -> str:
 
 
 def fallback_content(brand: str, platform: str, topic: str = "", feedback_guidance: str = "") -> str:
-    """Rich, brand-compliant copy — no banned words, always has disclaimer."""
+    """Rich, brand-compliant copy strictly conditioned on topic — no banned words, always has disclaimer."""
     info = get_brand(brand)
     key = _brand_key(brand)
-    hook = topic.strip() if topic else info["tagline"]
+    hook = (topic or "").strip().rstrip(".")
+    if not hook:
+        hook = info["tagline"]
+
     platform_hint = {
-        "linkedin": "For fellow practitioners and operators:",
-        "instagram": "Behind every showcase piece:",
-        "x": "Risk note:",
-        "tiktok": "60-second explainer:",
-        "blog": "Executive brief:",
+        "linkedin": "Executive Risk Note:",
+        "instagram": "Behind every showcase consignment:",
+        "x": "Market brief:",
+        "tiktok": "60-second risk explainer:",
+        "blog": "Specialist Underwriting Briefing:",
     }.get((platform or "").lower(), "Overview:")
 
-    if key == "doctorshield":
+    if any(w in hook.lower() for w in ["iphone", "phone", "device", "retail", "offer", "discount", "electronics"]):
         body = (
-            f"{platform_hint} {hook}. DoctorShield provides contract-based medical indemnity "
-            f"with 24/7 medico-legal helpline, retroactive cover transfer and transparent "
-            f"underwriting for private clinicians across Singapore, Malaysia and Hong Kong."
+            f"{platform_hint} {hook}.\n\n"
+            f"High-turnover promotional inventory and consumer technology shipments face heightened transit and storage risks across regional trade corridors. "
+            f"{brand} provides Lloyd's-backed commercial indemnity with verified chain-of-custody, dual-key vault parity, and transit protection for high-value merchandise."
+        )
+    elif key == "doctorshield":
+        body = (
+            f"{platform_hint} {hook}.\n\n"
+            f"DoctorShield provides contract-based medical indemnity with 24/7 medico-legal advisory, "
+            f"retroactive cover transfer, and transparent legal defense representation for specialist clinicians across Singapore, Malaysia, and Hong Kong."
         )
     elif key == "jaguar_transit":
         body = (
-            f"{platform_hint} {hook}. Jaguar Transit binds per-consignment high-value cargo cover "
-            f"in minutes with telematics-linked chain-of-custody documentation for vetted courier partners "
-            f"on SG–MY–TH–HK corridors."
+            f"{platform_hint} {hook}.\n\n"
+            f"Jaguar Transit binds per-consignment high-value multi-modal cargo cover in minutes "
+            f"with IoT telematics-linked chain-of-custody documentation across ASEAN freight trade corridors."
         )
     else:
         body = (
-            f"{platform_hint} {hook}. Jade Jewellers Block covers stock, memo goods and exhibition transit "
-            f"with same-day memo endorsements designed by jewellers for jewellers — SIJE and Bangkok fair ready."
+            f"{platform_hint} {hook}.\n\n"
+            f"Jade Jewellers Block covers physical vault stock, memo goods, and attended exhibition transit "
+            f"with same-day memo endorsements designed by specialists for luxury horology and diamond boutiques."
         )
+
     if feedback_guidance:
-        body += f" (Guidance applied: {feedback_guidance[:160]})"
+        body += f"\n\n(Reviewer guidance incorporated: {feedback_guidance[:140]})"
     return f"{body}\n\n{info['compliance_disclaimer']} {DISCLAIMER}"
 
 

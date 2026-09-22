@@ -135,8 +135,10 @@ def localization_node(state: MarketingState) -> dict:
         if not settings.demo_mode:
             log.error("localization_node LLM unavailable in real mode (%s) — failing honestly", exc)
             raise
-        log.warning("localization_node LLM unavailable (%s) — labeled DEMO pass", exc)
-        localized = "[DEMO] " + fallback_localize(state["draft_content"], state["language"], state["brand"])
+        base_draft = state["draft_content"] or ""
+        while base_draft.startswith("[DEMO] "):
+            base_draft = base_draft[7:]
+        localized = "[DEMO] " + fallback_localize(base_draft, state["language"], state["brand"])
         log.info("localization_node brand=%s language=%s (demo)", state["brand"], state["language"])
         return {"draft_content": localized, "is_demo": True}
     log.info("localization_node brand=%s language=%s", state["brand"], state["language"])

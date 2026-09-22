@@ -1,24 +1,133 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>JA Assure — Marketing Console</title>
-<link rel="stylesheet" href="./styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>JA Assure Intelligence — Autonomous Marketing &amp; Compliance OS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&family=SF+Pro+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
 </head>
-<body>
-<header class="topbar">
-  <div class="brand"><strong>JA Assure</strong><span>Marketing Console</span></div>
-  <nav id="nav">
-    <button data-view="queue" class="active">Queue</button>
-    <button data-view="generate">Generate</button>
-    <button data-view="metrics">Metrics</button>
-    <button data-view="leads">Leads</button>
-  </nav>
-  <div id="health" class="health" title="Backend status">…</div>
-</header>
-<div id="banner" class="banner" hidden></div>
-<main id="view"></main>
-<script src="./app.js"></script>
+<body class="adm-theme">
+
+  <!-- ========================================================================= -->
+  <!-- APPLE KEYNOTE INTRO LOADING SCREEN                                        -->
+  <!-- ========================================================================= -->
+  <div id="adm-loader" class="adm-loader">
+    <div class="loader-backdrop-glow"></div>
+    <div class="loader-content">
+      <div class="loader-logo-wrap">
+        <div class="loader-halo"></div>
+        <div class="loader-symbol">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="16" fill="url(#loader-grad)" />
+            <path d="M32 14L48 23V41L32 50L16 41V23L32 14Z" stroke="white" stroke-width="2.5" stroke-linejoin="round" />
+            <circle cx="32" cy="32" r="7" fill="white" />
+            <path d="M32 21V25M32 39V43M41 27L38 29M26 35L23 37M41 37L38 35M26 29L23 27" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round" />
+            <defs>
+              <linearGradient id="loader-grad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#10B981" />
+                <stop offset="0.5" stop-color="#06B6D4" />
+                <stop offset="1" stop-color="#3B82F6" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+      </div>
+      <h1 class="loader-title">JA Assure Intelligence</h1>
+      <p class="loader-subtitle">Autonomous Marketing &amp; Continuous Self-Healing Compliance OS</p>
+      
+      <div class="loader-progress-container">
+        <div class="loader-progress-track">
+          <div id="loader-progress-bar" class="loader-progress-fill"></div>
+        </div>
+        <div id="loader-status" class="loader-status-text">Booting Neural Architecture...</div>
+      </div>
+
+      <div class="loader-badges">
+        <span>Zero-Cost Media Studio</span>
+        <span>•</span>
+        <span>MAS Notice 318 Guard</span>
+        <span>•</span>
+        <span>DSPy GEPA Optimizer</span>
+        <span>•</span>
+        <span>Obsidian Second Brain</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- CUPERTINO SYSTEM BAR & WORKSPACE NAVIGATION                               -->
+  <!-- ========================================================================= -->
+  <header class="cupertino-bar">
+    <div class="bar-left">
+      <div class="brand-insignia" id="brand-home-btn" title="JA Assure Intelligence Workstation">
+        <svg width="28" height="28" viewBox="0 0 64 64" fill="none">
+          <rect width="64" height="64" rx="14" fill="url(#bar-grad)" />
+          <path d="M32 16L46 24V40L32 48L18 40V24L32 16Z" stroke="white" stroke-width="3" />
+          <circle cx="32" cy="32" r="6" fill="white" />
+          <defs>
+            <linearGradient id="bar-grad" x1="0" y1="0" x2="64" y2="64">
+              <stop stop-color="#10B981"/>
+              <stop offset="1" stop-color="#0284C7"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <span class="brand-name">JA Assure</span>
+        <span class="brand-pill">OS 2.6</span>
+      </div>
+    </div>
+
+    <nav class="cupertino-nav" id="main-nav">
+      <div class="nav-pill-slider" id="nav-slider"></div>
+      <button class="nav-item active" data-view="overview" title="Executive Cockpit & Live Operations">Cockpit</button>
+      <button class="nav-item" data-view="studio" title="End-to-End Pipeline & Multi-Platform Previews">Studio</button>
+      <button class="nav-item" data-view="compliance" title="Regulatory Testing & 3-Agent Debate Lab">Compliance Lab</button>
+      <button class="nav-item" data-view="medialab" title="Remotion Player, Kinetic Subtitles & FLUX Diffuser">Media Studio</button>
+      <button class="nav-item" data-view="vault" title="Obsidian Vault & 3-Tier Memory Graph">Second Brain</button>
+      <button class="nav-item" data-view="perception" title="Crawl4AI Competitor Intel & Newsjacking">Perception</button>
+      <button class="nav-item" data-view="queue" title="Review Queue & Project 2 Auto-Publisher">Review &amp; Publish</button>
+      <button class="nav-item" data-view="graph" title="LangGraph Decision Graph Canvas">Decision Graph</button>
+      <button class="nav-item" data-view="metrics" title="Closed-Loop Telemetry & Learning Curves">Telemetry</button>
+      <button class="nav-item" data-view="leads" title="B2B Prospecting & Fit Score Radar">Leads CRM</button>
+    </nav>
+
+    <div class="bar-right">
+      <div class="health-chip" id="health-chip" title="Backend & Model Sync Status">
+        <span class="pulse-dot"></span>
+        <span class="health-label" id="health-label">Syncing...</span>
+      </div>
+
+      <button class="action-btn-primary" id="btn-quick-generate" title="Launch Content Generator">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>New Pipeline</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Global Alert Banner -->
+  <div id="adm-banner" class="adm-banner" hidden>
+    <div class="banner-inner">
+      <span class="banner-icon" id="banner-icon">ℹ️</span>
+      <span class="banner-text" id="banner-text">Notification</span>
+      <button class="banner-close" id="banner-close">&times;</button>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MAIN APPLICATION STAGE WORKSPACE                                          -->
+  <!-- ========================================================================= -->
+  <main class="adm-stage" id="adm-stage">
+    <!-- Active interactive testbench view mounts here -->
+  </main>
+
+  <!-- Remotion-Style Video Preview Audio Element -->
+  <audio id="global-player-audio" preload="auto"></audio>
+
+  <script src="./app.js"></script>
 </body>
 </html>

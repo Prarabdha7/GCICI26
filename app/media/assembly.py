@@ -255,38 +255,191 @@ def assemble_video(
             background_path = fetch_stock_video(keyword, output_dir=output_dir)
             log.info("assemble_video: using Pexels stock footage for keyword=%r", keyword)
         except Exception as exc:
-            log.info("assemble_video: Pexels stock footage unavailable (%s) — using brand-tinted ColorClip", exc)
+            log.info("assemble_video: Pexels stock footage unavailable (%s) — checking local diffusion images", exc)
+            try:
+                recent_imgs = sorted(output_dir.glob("img_*.jpg"), key=lambda p: p.stat().st_mtime, reverse=True)
+                if recent_imgs:
+                    background_path = recent_imgs[0]
+                    log.info("assemble_video: using recent FLUX.1 diffusion image %s as backdrop", background_path)
+            except Exception:
+                pass
 
     audio_path = output_dir / f"voiceover_{run_id}.mp3"
 
     try:
         _run_voiceover_sync(script, language, audio_path)
     except Exception as exc:
-        log.warning("edge-tts failed (%s) — continuing with silent-length stub", exc)
-        audio_path.write_bytes(b"stub mp3")
+        log.warning("edge-tts failed (%s) — generating valid silent audio stub", exc)
+        try:
+            import subprocess
+            subprocess.run(
+                ["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", "5", "-c:a", "libmp3lame", str(audio_path)],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+            )
+        except Exception:
+            pass
+        if not audio_path.exists() or audio_path.stat().st_size == 0:
+            audio_path.write_bytes(b"stub mp3")
+    try:
+        # Ensure voice_runid alias exists for any legacy callers
+        voice_alias = output_dir / f"voice_{run_id}.mp3"
+        if audio_path.exists() and not voice_alias.exists():
+            import shutil as _sh
+            _sh.copyfile(audio_path, voice_alias)
+    except Exception:
+        pass
     try:
         render_caption_card(script, brand=brand, output_path=output_dir / f"caption_{run_id}.png")
     except Exception:
         pass
-    # Encoder unavailable (moviepy broken/missing in this env): in DEMO_MODE
-    # write a stub reel so the walkthrough still shows captions/SRT layout.
-    # Real mode returns honestly with no fake media file.
+    # Encoder check:
+    # 1. If AudioFileClip is present (e.g. monkeypatched by pytest), run the moviepy path below.
+    # 2. If AudioFileClip is missing but FFmpeg is on PATH, render real MP4 via FFmpeg!
+    # 3. Otherwise fall back to DEMO stub or raise in real mode.
     if AudioFileClip is None or ColorClip is None:
-        from app.config import settings as _settings2
+        import json as _json
+        import shutil
+        import subprocess
 
-        if not _settings2.demo_mode:
-            raise RuntimeError("video encoder unavailable in real mode — media skipped honestly")
-        total_duration = max(3.0, len((script or "").split()) * 0.4)
-        timings = estimate_timings(script, total_duration)
-        captions = chunk_captions(timings)
+        # Calculate word timings + captions
+        duration = 3.0
+        ffprobe_bin = shutil.which("ffprobe")
+        if ffprobe_bin and audio_path.exists() and audio_path.stat().st_size > 100:
+            try:
+                probe_res = subprocess.run(
+                    [ffprobe_bin, "-v", "error", "-show_entries", "format=duration", "-of", "json", str(audio_path)],
+                    capture_output=True, text=True, timeout=5,
+                )
+                duration = float(_json.loads(probe_res.stdout)["format"]["duration"])
+            except Exception:
+                duration = max(3.0, len((script or "").split()) * 0.45)
+        else:
+            duration = max(3.0, len((script or "").split()) * 0.45)
+
+        timings = []
         try:
-            import json as _json
+            try:
+                asyncio.get_running_loop()
+                in_loop = True
+            except RuntimeError:
+                in_loop = False
+            if in_loop:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    timings = pool.submit(lambda: asyncio.run(get_word_boundaries(script, language))).result(timeout=2.0)
+            else:
+                timings = asyncio.run(asyncio.wait_for(get_word_boundaries(script, language), timeout=2.0))
+        except Exception:
+            timings = []
+        if not timings:
+            timings = estimate_timings(script, duration)
+        captions = chunk_captions(timings)
 
+        # Write json & srt
+        try:
             (output_dir / f"reel_{run_id}.json").write_text(_json.dumps({"captions": captions, "words": timings[:200]}), encoding="utf-8")
-            (output_dir / f"reel_{run_id}.srt").write_text("\n".join(c["text"] for c in captions), encoding="utf-8")
-            video_path.write_bytes(b"DEMO stub mp4 - install moviepy 1.0.3 on py3.10 for real encoding")
+            srt_lines = []
+            for i, cap in enumerate(captions, 1):
+                def _ts(s: float) -> str:
+                    ms = int(s * 1000)
+                    return f"{ms//3600000:02d}:{(ms//60000)%60:02d}:{(ms//1000)%60:02d},{ms%1000:03d}"
+                srt_lines += [str(i), f"{_ts(cap['start'])} --> {_ts(cap['end'])}", cap["text"], ""]
+            (output_dir / f"reel_{run_id}.srt").write_text("\n".join(srt_lines), encoding="utf-8")
         except Exception:
             pass
+
+        ffmpeg_bin = shutil.which("ffmpeg")
+        caption_png = output_dir / f"caption_{run_id}.png"
+        rendered = False
+        srt_file = output_dir / f"reel_{run_id}.srt"
+        sub_filter = ""
+        if srt_file.exists() and srt_file.stat().st_size > 0:
+            try:
+                rel_srt = srt_file.relative_to(Path.cwd()).as_posix()
+            except ValueError:
+                rel_srt = srt_file.as_posix()
+            sub_filter = f",subtitles={rel_srt}"
+
+        if ffmpeg_bin and audio_path.exists():
+            c = _brand_color(brand)
+            hex_color = f"0x{c[0]:02X}{c[1]:02X}{c[2]:02X}"
+
+            def _build_cmd(include_subtitles: bool = True):
+                sf = sub_filter if include_subtitles else ""
+                cmd = [ffmpeg_bin, "-y"]
+                if background_path is not None and background_path.exists():
+                    is_img = background_path.suffix.lower() in [".jpg", ".jpeg", ".png", ".webp"]
+                    if is_img:
+                        cmd += [
+                            "-loop", "1", "-i", str(background_path),
+                            "-i", str(audio_path),
+                            "-filter_complex",
+                            f"[0:v]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,zoompan=z='min(zoom+0.0015,1.25)':d=125:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=24{sf}[v]",
+                            "-map", "[v]", "-map", "1:a",
+                            "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
+                            "-pix_fmt", "yuv420p",
+                            "-c:a", "aac", "-b:a", "192k",
+                            "-shortest",
+                            "-movflags", "+faststart",
+                            str(video_path),
+                        ]
+                    else:
+                        vf = sf.lstrip(",") if sf else "null"
+                        cmd += [
+                            "-stream_loop", "-1", "-i", str(background_path),
+                            "-i", str(audio_path),
+                            "-vf", vf,
+                            "-c:v", "libx264", "-preset", "ultrafast",
+                            "-pix_fmt", "yuv420p",
+                            "-c:a", "aac", "-b:a", "192k",
+                            "-shortest",
+                            "-movflags", "+faststart",
+                            str(video_path),
+                        ]
+                elif caption_png.exists():
+                    cmd += [
+                        "-loop", "1", "-i", str(caption_png),
+                        "-i", str(audio_path),
+                        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
+                        "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-b:a", "192k",
+                        "-shortest",
+                        "-movflags", "+faststart",
+                        str(video_path),
+                    ]
+                else:
+                    cmd += [
+                        "-f", "lavfi", "-i", f"color=c={hex_color}:s=1080x1920:r=24",
+                        "-i", str(audio_path),
+                        "-c:v", "libx264", "-preset", "ultrafast",
+                        "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-b:a", "192k",
+                        "-shortest",
+                        "-movflags", "+faststart",
+                        str(video_path),
+                    ]
+                return cmd
+
+            try:
+                cmd = _build_cmd(include_subtitles=bool(sub_filter))
+                proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+                if proc.returncode != 0 and sub_filter:
+                    log.warning("assemble_video subtitles burn-in failed (%s) — retrying without burned subtitles", proc.stderr[-200:].decode("utf-8", errors="ignore"))
+                    cmd = _build_cmd(include_subtitles=False)
+                    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+
+                if proc.returncode == 0 and video_path.exists() and video_path.stat().st_size > 0:
+                    rendered = True
+                    log.info("assemble_video: rendered via direct FFmpeg %s (%d bytes)", video_path, video_path.stat().st_size)
+            except Exception as ffmpeg_err:
+                log.warning("assemble_video FFmpeg render failed (%s)", ffmpeg_err)
+
+        if rendered:
+            return video_path
+
+        from app.config import settings as _settings2
+        if not _settings2.demo_mode:
+            raise RuntimeError("video encoder unavailable in real mode — media skipped honestly")
+        video_path.write_bytes(b"DEMO stub mp4 - install moviepy 1.0.3 on py3.10 for real encoding")
         return video_path
     audio_clip = AudioFileClip(str(audio_path))
     total_duration = float(getattr(audio_clip, "duration", 0) or 0) or 3.0

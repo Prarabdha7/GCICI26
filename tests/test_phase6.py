@@ -315,3 +315,52 @@ def test_static_mount_serves_a_real_file(client) -> None:
         assert response.text == "ok"
     finally:
         probe.unlink()
+
+
+def test_api_draft_script_retail_device(client) -> None:
+    res = client.post("/api/media/draft-script", json={"topic": "iPhone 18 Pro 5% offer", "brand": "Jade"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["ok"] is True
+    assert "voiceover_script" in data
+    assert "visual_prompt" in data
+    assert "social_copy" in data
+    assert len(data["voiceover_script"]) > 10
+
+
+def test_api_draft_script_medical(client) -> None:
+    res = client.post("/api/media/draft-script", json={"topic": "telemedicine liabilities", "brand": "DoctorShield"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["ok"] is True
+    assert "DoctorShield" in data["voiceover_script"] or "clinical" in data["voiceover_script"].lower() or "practice" in data["voiceover_script"].lower()
+
+
+def test_api_draft_script_cargo(client) -> None:
+    res = client.post("/api/media/draft-script", json={"topic": "Red Sea detour cold-chain", "brand": "Jaguar Transit"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["ok"] is True
+    assert "Jaguar Transit" in data["voiceover_script"] or "cargo" in data["voiceover_script"].lower() or "freight" in data["voiceover_script"].lower()
+
+
+def test_api_synthesize_speech(client) -> None:
+    res = client.post("/api/media/synthesize-speech", json={"script": "Test neural voiceover.", "language": "en"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["ok"] is True
+    assert data["audio_url"].startswith("/temp/")
+    assert data["filename"].endswith(".mp3")
+
+
+def test_api_perception_scrape_live_search(client) -> None:
+    res = client.post("/api/perception/scrape", json={"competitor": "Chubb", "brand": "Jade"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["ok"] is True
+    assert len(data["extracted_claims"]) > 0
+    assert len(data["competitor_gaps"]) > 0
+    assert "Jade" in data["counter_positioning_hook"]
+    assert "crawl_telemetry" in data
+    assert data["crawl_telemetry"]["tokens_consumed"] == 0
+

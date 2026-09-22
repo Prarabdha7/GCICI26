@@ -46,17 +46,40 @@ async def research_summary(query: str, *, max_results: int = 2, attempts: int = 
     if not urls:
         return ""
 
-    from crawl4ai import AsyncWebCrawler
-
     sections: list[str] = []
-    async with AsyncWebCrawler() as crawler:
-        for url in urls:
-            try:
-                result = await crawler.arun(url=url)
-                markdown = str(result.markdown).strip()
-            except Exception:
-                log.exception("Crawl4AI failed to scrape %s", url)
-                continue
-            if markdown:
-                sections.append(f"### {url}\n{markdown[:MAX_CHARS_PER_PAGE]}")
+    try:
+        from crawl4ai import AsyncWebCrawler
+    except ImportError:
+        AsyncWebCrawler = None
+
+    if AsyncWebCrawler is not None:
+        async with AsyncWebCrawler() as crawler:
+            for url in urls:
+                try:
+                    result = await crawler.arun(url=url)
+                    markdown = str(result.markdown).strip()
+                except Exception:
+                    log.exception("Crawl4AI failed to scrape %s", url)
+                    continue
+                if markdown:
+                    sections.append(f"### {url}\n{markdown[:MAX_CHARS_PER_PAGE]}")
+    else:
+        # Fallback to fast httpx + BeautifulSoup scraping
+        import httpx
+        from bs4 import BeautifulSoup
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+            for url in urls:
+                try:
+                    res = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                    if res.status_code == 200:
+                        soup = BeautifulSoup(res.text, "html.parser")
+                        for tag in soup(["script", "style", "nav", "footer"]):
+                            tag.decompose()
+                        text = soup.get_text(separator=" ", strip=True)
+                        if text:
+                            sections.append(f"### {url}\n{text[:MAX_CHARS_PER_PAGE]}")
+                except Exception:
+                    log.debug("HTTP fallback scrape skipped for %s", url)
+                    continue
+
     return "\n\n".join(sections)

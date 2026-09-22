@@ -63,10 +63,20 @@ def publish_approved_content() -> int:
             content_id = item.id
             try:
                 post_id = publish_with_retry(publisher, item)
-            except PublisherError:
-                log.exception("publish failed for content_id=%s", content_id)
-                log_event(db, content_id=content_id, event="failed", provider=provider, payload={"error": "publish failed"})
-                continue
+            except PublisherError as exc:
+                if settings.demo_mode and not isinstance(publisher, MockPublisher):
+                    log.warning("Live publisher failed (%s) in DEMO_MODE; falling back to MockPublisher for content_id=%s", exc, content_id)
+                    try:
+                        fallback_pub = MockPublisher()
+                        post_id = publish_with_retry(fallback_pub, item)
+                        provider = "mock"
+                    except Exception as inner_exc:
+                        log.exception("Mock publisher also failed for content_id=%s: %s", content_id, inner_exc)
+                        continue
+                else:
+                    log.exception("publish failed for content_id=%s", content_id)
+                    log_event(db, content_id=content_id, event="failed", provider=provider, payload={"error": "publish failed"})
+                    continue
             item.external_post_id = post_id
             item.status = ContentStatus.SCHEDULED.value
             item.scheduled_for = dt.datetime.now(dt.timezone.utc)

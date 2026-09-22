@@ -73,6 +73,7 @@ def image_call(
     *,
     prompt: str,
     provider: str | None = None,
+    aspect_ratio: str = "1:1",
 ) -> bytes:
     """Generates a single image from a text prompt. Returns raw image bytes.
     Used by app.media.image_gen for Instagram-visual posts/carousels.
@@ -91,7 +92,7 @@ def image_call(
         return _gemini_image(prompt=prompt)
     except LLMError as exc:
         log.warning("Gemini image generation unavailable (%s) — falling back to Pollinations (keyless, free)", exc)
-        return _pollinations_image(prompt=prompt)
+        return _pollinations_image(prompt=prompt, aspect_ratio=aspect_ratio)
 
 
 def video_call(
@@ -158,19 +159,33 @@ def _gemini(*, system: str, user: str, temperature: float, schema: dict[str, Any
         config["response_mime_type"] = "application/json"
         config["response_schema"] = schema
 
-    try:
-        response = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=user,
-            config=types.GenerateContentConfig(**config),
-        )
-    except Exception as exc:  # pragma: no cover - network path
-        raise LLMError(f"Gemini call failed: {exc}") from exc
+    models_to_try = [settings.gemini_model]
+    for alt in ("gemini-3.5-flash", "gemini-3.6-flash"):
+        if alt not in models_to_try:
+            models_to_try.append(alt)
 
-    text = (response.text or "").strip()
-    if not text:
+    last_exc = None
+    response = None
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=user,
+                config=types.GenerateContentConfig(**config),
+            )
+            if response and (response.text or "").strip():
+                break
+        except Exception as exc:  # pragma: no cover - network path
+            last_exc = exc
+            log.warning("Gemini call on %s failed (%s) — trying next model", model_name, exc)
+            continue
+
+    if response is None or not (response.text or "").strip():
+        if last_exc:
+            raise LLMError(f"Gemini call failed: {last_exc}") from last_exc
         raise LLMError("Gemini returned an empty response.")
-    return text
+
+    return (response.text or "").strip()
 
 
 def _gemini_image(*, prompt: str) -> bytes:
@@ -209,20 +224,35 @@ def _gemini_image(*, prompt: str) -> bytes:
     return image_bytes
 
 
-def _pollinations_image(*, prompt: str) -> bytes:
+def _pollinations_image(*, prompt: str, aspect_ratio: str = "1:1") -> bytes:
     """Keyless, free image generation — no account, no billing. Confirmed
     live: GET returns a real image/jpeg body."""
     import urllib.parse
-
     import httpx
 
-    url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}"
+    dim_map = {
+        "1:1": (1024, 1024),
+        "9:16": (768, 1344),
+        "16:9": (1344, 768),
+    }
+    w, h = dim_map.get(aspect_ratio, (1024, 1024))
+    clean = prompt.replace("\n", " ").replace("%", " percent ").replace("&", " and ").strip()[:200]
+    encoded = urllib.parse.quote(clean)
+    url = f"https://image.pollinations.ai/prompt/{encoded}?width={w}&height={h}&nologo=true&model=flux"
     try:
-        response = httpx.get(url, timeout=45.0, follow_redirects=True)
+        response = httpx.get(url, timeout=20.0, follow_redirects=True)
         response.raise_for_status()
-    except httpx.HTTPError as exc:
+    except httpx.HTTPError:
+        try:
+            fallback_url = f"https://image.pollinations.ai/prompt/{encoded}"
+            response = httpx.get(fallback_url, timeout=20.0, follow_redirects=True)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise LLMError(f"Pollinations image call failed: {exc}") from exc
+    except Exception as exc:
         raise LLMError(f"Pollinations image call failed: {exc}") from exc
-    if not response.content:
+
+    if not getattr(response, "content", None):
         raise LLMError("Pollinations returned an empty image.")
     return response.content
 
