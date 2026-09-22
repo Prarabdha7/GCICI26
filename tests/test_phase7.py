@@ -181,7 +181,8 @@ class _FailingPublisher:
         raise publisher_module.PublisherError("boom")
 
 
-def test_publish_approved_content_transitions_approved_to_published(monkeypatch) -> None:
+def test_publish_approved_content_transitions_approved_to_scheduled(monkeypatch) -> None:
+    """published is reserved for a future webhook confirmation the post went live."""
     with session_scope() as db:
         row = _seed_queue_row(db)
         content_id = row.id
@@ -193,9 +194,9 @@ def test_publish_approved_content_transitions_approved_to_published(monkeypatch)
     assert count == 1
     with session_scope() as db:
         item = db.get(ContentQueue, content_id)
-        assert item.status == ContentStatus.PUBLISHED.value
+        assert item.status == ContentStatus.SCHEDULED.value
         assert item.external_post_id == "post-abc"
-        assert item.published_at is not None
+        assert item.published_at is None
 
 
 def test_publish_approved_content_ignores_non_approved_rows(monkeypatch) -> None:
@@ -244,7 +245,7 @@ def test_publish_approved_content_one_failure_does_not_block_others(monkeypatch)
     scheduler_module.publish_approved_content()
 
     with session_scope() as db:
-        assert db.get(ContentQueue, good_id).status == ContentStatus.PUBLISHED.value
+        assert db.get(ContentQueue, good_id).status == ContentStatus.SCHEDULED.value
         assert db.get(ContentQueue, bad_id).status == ContentStatus.APPROVED.value
 
 
