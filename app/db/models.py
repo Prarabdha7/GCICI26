@@ -116,6 +116,9 @@ class ContentQueue(Base):
     draft_content: Mapped[str] = mapped_column(Text)
     final_content: Mapped[str | None] = mapped_column(Text, default=None)  # after human edit
     media_path: Mapped[str | None] = mapped_column(String(512), default=None)
+    healed_content: Mapped[str | None] = mapped_column(Text, default=None)
+    audit_transcript: Mapped[str | None] = mapped_column(Text, default=None)
+    formats_json: Mapped[str | None] = mapped_column(Text, default=None)  # multi-format pack
 
     # --- state machine ---
     status: Mapped[str] = mapped_column(String(32), index=True, default=ContentStatus.PENDING.value)
@@ -215,3 +218,25 @@ class Lead(Base):
 
     def __repr__(self) -> str:
         return f"<Lead id={self.id} {self.company_name} score={self.fit_score}>"
+
+
+class PublishEvent(Base):
+    """Audit + analytics log for Project 2. One row per publish attempt / webhook / engagement snapshot.
+
+    Keeps engagement out of feedback_reason hack — queryable for the analytics loop.
+    """
+
+    __tablename__ = "publish_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    content_id: Mapped[int | None] = mapped_column(
+        ForeignKey("content_queue.id", ondelete="SET NULL"), default=None, index=True
+    )
+    event: Mapped[str] = mapped_column(String(32), index=True)  # scheduled | published | failed | webhook | engagement
+    provider: Mapped[str] = mapped_column(String(32), default="mock")
+    external_post_id: Mapped[str | None] = mapped_column(String(128), default=None)
+    payload: Mapped[dict | None] = mapped_column(JSON, default=None)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self) -> str:
+        return f"<PublishEvent id={self.id} content={self.content_id} {self.event}>"

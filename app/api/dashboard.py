@@ -82,6 +82,16 @@ def metrics_view(request: Request, db: Session = Depends(get_db)) -> HTMLRespons
     rejected = by_status.get(ContentStatus.REJECTED.value, 0)
     decided = approved + rejected
 
+    feedback_rows = list(db.scalars(select(FeedbackMemory).order_by(FeedbackMemory.timestamp.desc()).limit(50)))
+    # edit-distance telemetry from human-edited rows (draft vs final)
+    edited = list(
+        db.scalars(
+            select(ContentQueue).where(ContentQueue.final_content.is_not(None)).limit(200)
+        )
+    )
+    distances = [_edit_distance(r.draft_content or "", r.final_content or "") for r in edited if r.final_content]
+    avg_edit = round(sum(distances) / len(distances), 1) if distances else 0.0
+
     return templates.TemplateResponse(
         request,
         "metrics.html",
@@ -92,17 +102,80 @@ def metrics_view(request: Request, db: Session = Depends(get_db)) -> HTMLRespons
             "avg_retries": round(db.scalar(select(func.avg(ContentQueue.retry_count))) or 0.0, 2),
             "feedback_entries": db.scalar(select(func.count(FeedbackMemory.id))) or 0,
             "leads": db.scalar(select(func.count(Lead.id))) or 0,
+            "avg_edit_distance": avg_edit,
+            "lessons": feedback_rows[:15],
         },
     )
 
 
+def _media_urls(media_path: str | None) -> dict:
+    """Map stored media_path to web URLs. New rows store `temp/reel_xxx.mp4`;
+    legacy absolute paths fall back to filename under /temp/."""
+    if not media_path:
+        return {}
+    import pathlib
+
+    p = media_path.replace("\\", "/")
+    name = pathlib.PurePath(p).name
+    if p.startswith("temp/"):
+        base = p
+    elif "/temp/" in p:
+        base = "temp/" + p.split("/temp/", 1)[1]
+    else:
+        base = f"temp/{name}"
+    stem = base[:-4] if base.endswith(".mp4") else base
+    return {
+        "video_url": f"/{base}",
+        "srt_url": f"/{stem}.srt",
+        "json_url": f"/{stem}.json",
+        "file": name,
+    }
+
+
 @router.get("/dashboard/queue/{content_id}", response_class=HTMLResponse)
 def queue_detail(content_id: int, request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+    import difflib
+    import json as _json
+
     item = _get_item_or_404(content_id, db)
+    media = _media_urls(item.media_path)
+    # caption cards for the player (best-effort read of sibling .json)
+    captions: list[dict] = []
+    try:
+        from pathlib import Path as _Path
+
+        sibling = None
+        if item.media_path:
+            mp = (item.media_path or "").replace("\\", "/")
+            fname = mp.split("/")[-1]
+            stem = fname[:-4] if fname.endswith(".mp4") else fname
+            sibling = _Path(settings.base_dir) / "temp" / f"{stem}.json"
+        if sibling is not None and sibling.exists():
+            captions = (_json.loads(sibling.read_text(encoding="utf-8")) or {}).get("captions", [])[:24]
+    except Exception:
+        captions = []
+    # redline diff draft -> healed/final
+    diff_rows: list[tuple[str, str]] = []
+    target = item.healed_content or item.final_content
+    if target and target != item.draft_content:
+        for line in difflib.unified_diff(
+            (item.draft_content or "").splitlines(),
+            target.splitlines(),
+            lineterm="",
+        ):
+            if line.startswith("---") or line.startswith("+++") or line.startswith("@@"):
+                continue
+            diff_rows.append(("del" if line.startswith("-") else "ins" if line.startswith("+") else "ctx", line[1:]))
+    # multi-format pack
+    pack: dict = {}
+    try:
+        pack = _json.loads(item.formats_json) if item.formats_json else {}
+    except Exception:
+        pack = {}
     return templates.TemplateResponse(
         request,
         "queue_detail.html",
-        {"item": item, "error_tags": [tag.value for tag in ErrorTag]},
+        {"item": item, "error_tags": [tag.value for tag in ErrorTag], "media": media, "captions": captions, "diff_rows": diff_rows, "pack": pack},
     )
 
 
@@ -157,3 +230,140 @@ def edit(
         error_tag=error_tag, human_note=human_note, content_id=item.id,
     )
     return _action_response(request)
+
+
+def _edit_distance(a: str, b: str) -> int:
+    """Levenshtein distance (stdlib only) for closed-loop telemetry."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[-1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+@router.post("/dashboard/generate", response_class=HTMLResponse)
+def generate_campaign(
+    request: Request,
+    brand: str = Form(...),
+    platform: str = Form(default="linkedin"),
+    language: str = Form(default="en"),
+    topic: str = Form(default=""),
+    content_type: str = Form(default="post"),
+):
+    """Mission-control trigger: runs the LangGraph pipeline synchronously (zero-key safe)."""
+    import uuid
+
+    from app.graph.graph import build_graph
+
+    initial_state = {
+        "draft_content": "",
+        "brand": brand,
+        "platform": platform,
+        "language": language,
+        "topic": topic,
+        "content_type": content_type,
+        "enable_adversarial": True,
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
+        "media_path": None,
+        "status": "",
+        "content_id": None,
+    }
+    try:
+        graph = build_graph()
+        final_state = graph.invoke(initial_state, config={"configurable": {"thread_id": str(uuid.uuid4())}})
+        msg = f"Generated {brand}/{platform} (content_id={final_state.get('content_id')}, retries={final_state.get('retry_count', 0)})."
+    except Exception as exc:
+        msg = f"Generation failed: {exc}"
+    # re-render queue with a status banner
+    from sqlalchemy.orm import Session as SASession
+
+    db: SASession = next(get_db())
+    try:
+        items = list(
+            db.scalars(
+                select(ContentQueue)
+                .where(ContentQueue.status == ContentStatus.PENDING.value)
+                .order_by(ContentQueue.created_at.desc())
+            )
+        )
+    finally:
+        db.close()
+    return templates.TemplateResponse(
+        request, "dashboard.html", {"items": items, "active_tab": "queue", "banner": msg}
+    )
+
+
+@router.post("/dashboard/queue/{content_id}/accept-fix")
+def accept_fix(content_id: int, request: Request, db: Session = Depends(get_db)) -> Response:
+    """One-click self-healing: apply heuristic redline fix and approve."""
+    from app.llm.fallback import heuristic_compliance_check, self_healing_fix
+
+    item = _get_item_or_404(content_id, db)
+    verdict = heuristic_compliance_check(item.draft_content or "")
+    fixed = self_healing_fix(item.draft_content or "", verdict.get("violations", []))
+    item.final_content = fixed
+    item.healed_content = item.healed_content or fixed
+    item.status = ContentStatus.APPROVED.value
+    item.reviewed_at = dt.datetime.now(dt.timezone.utc)
+    db.commit()
+    create_feedback_entry(
+        db, brand=item.brand, platform=item.platform,
+        error_tag="compliance_risk", human_note="Accepted self-healing fix.", content_id=item.id,
+    )
+    return _action_response(request)
+
+
+@router.post("/dashboard/newsjack", response_class=HTMLResponse)
+def newsjack(
+    request: Request,
+    brand: str = Form(...),
+    niche: str = Form(default="jewellers block"),
+    country: str = Form(default="Singapore"),
+    platform: str = Form(default="linkedin"),
+    language: str = Form(default="en"),
+):
+    """Competitor-intel trigger: research -> topic -> full campaign (zero-key safe)."""
+    import uuid
+
+    from app.graph.graph import build_graph
+    from worker.intel import newsjack_topic
+
+    try:
+        topic = newsjack_topic(brand, niche, country)
+        graph = build_graph()
+        final_state = graph.invoke(
+            {
+                "draft_content": "", "brand": brand, "platform": platform,
+                "language": language, "topic": topic, "content_type": "post",
+                "enable_adversarial": True, "compliance_errors": [], "retry_count": 0,
+                "feedback_guidance": "", "media_path": None, "status": "", "content_id": None,
+            },
+            config={"configurable": {"thread_id": str(uuid.uuid4())}},
+        )
+        msg = f"Newsjacked {brand}/{country} (content_id={final_state.get('content_id')}): {topic[:120]}"
+    except Exception as exc:
+        msg = f"Newsjack failed: {exc}"
+    db: Session = next(get_db())
+    try:
+        items = list(
+            db.scalars(
+                select(ContentQueue)
+                .where(ContentQueue.status == ContentStatus.PENDING.value)
+                .order_by(ContentQueue.created_at.desc())
+            )
+        )
+    finally:
+        db.close()
+    return templates.TemplateResponse(
+        request, "dashboard.html", {"items": items, "active_tab": "queue", "banner": msg}
+    )

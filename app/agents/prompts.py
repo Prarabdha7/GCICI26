@@ -36,9 +36,11 @@ def content_system_prompt(*, brand: str, platform: str, feedback_guidance: str =
 
 
 def content_user_prompt(
-    *, brand: str, platform: str, compliance_errors: list[str] | None = None
+    *, brand: str, platform: str, topic: str = "", compliance_errors: list[str] | None = None
 ) -> str:
     base = f"Write a marketing post for {brand} on {platform}."
+    if topic:
+        base += f" Topic/focus: {topic}."
     if compliance_errors:
         joined = "\n".join(f"- {err}" for err in compliance_errors)
         base += (
@@ -79,6 +81,30 @@ def compliance_system_prompt(*, brand: str, rubric: str) -> str:
 
 def compliance_user_prompt(*, draft_content: str) -> str:
     return f"Evaluate this marketing copy:\n\n{draft_content}"
+
+
+def adversarial_marketer_prompt(*, brand: str, draft: str) -> str:
+    return (
+        f"You are the Growth Marketer for {brand}. Push this draft to maximize CTR:\n\n{draft}\n\n"
+        "List the 2 boldest claims you would keep. Plain text."
+    )
+
+
+def adversarial_inquisitor_prompt(*, brand: str, draft: str, rubric: str) -> str:
+    return (
+        f"You are the Regulatory Inquisitor (MAS/BNM/HKIA/OIC/OJK auditor) for {brand}. "
+        "Your sole goal is to find violations and fine JA Assure.\n\n"
+        f"Draft:\n{draft}\n\nRubric:\n{rubric}\n\n"
+        "Return a bullet list of violations with clause citations (e.g. MAS-1, Rubric 4). Be aggressive."
+    )
+
+
+def adversarial_arbiter_prompt(*, brand: str, draft: str, violations: str) -> str:
+    return (
+        f"You are the Underwriter Arbiter for {brand}. Strike risky promises, insert statutory clauses.\n\n"
+        f"Draft:\n{draft}\n\nViolations:\n{violations}\n\n"
+        "Return the certified compliant rewrite only, with disclaimers appended."
+    )
 
 
 def research_system_prompt(*, brand: str) -> str:

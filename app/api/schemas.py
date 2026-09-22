@@ -20,6 +20,9 @@ class ContentQueueOut(BaseModel):
     draft_content: str
     final_content: str | None = None
     media_path: str | None = None
+    healed_content: str | None = None
+    audit_transcript: str | None = None
+    formats_json: str | None = None
     status: str
     compliance_errors: list[str] = Field(default_factory=list)
     retry_count: int

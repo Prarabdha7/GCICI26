@@ -6,6 +6,8 @@
 <p>
     <span class="badge badge-{{ item.status }}">{{ item.status }}</span>
     &middot; retries: {{ item.retry_count }}
+    {% if item.topic %}&middot; topic: {{ item.topic }}{% endif %}
+    {% if item.variant_label %}&middot; variant {{ item.variant_label }}{% endif %}
 </p>
 
 <article>
@@ -20,17 +22,87 @@
 </article>
 {% endif %}
 
+{% if item.healed_content %}
+<article>
+    <h3>Self-healed rewrite</h3>
+    <p style="white-space: pre-wrap;">{{ item.healed_content }}</p>
+</article>
+{% endif %}
+
+{% if diff_rows %}
+<article>
+    <h3>Redline diff (draft → healed/final)</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div><strong>Before</strong><p style="white-space: pre-wrap;">{{ item.draft_content }}</p></div>
+        <div><strong>After</strong><p style="white-space: pre-wrap;">{{ item.healed_content or item.final_content }}</p></div>
+    </div>
+    <ul>
+        {% for kind, line in diff_rows %}
+        <li style="{% if kind == 'del' %}background:#fee2e2;{% elif kind == 'ins' %}background:#dcfce7;{% endif %}">{{ line }}</li>
+        {% endfor %}
+    </ul>
+</article>
+{% endif %}
+
+{% if item.audit_transcript %}
+<article>
+    <h3>Adversarial audit transcript</h3>
+    <p style="white-space: pre-wrap;">{{ item.audit_transcript }}</p>
+</article>
+{% endif %}
+
 {% if item.compliance_errors %}
 <article>
     <h3>Compliance violations</h3>
     <ul>{% for violation in item.compliance_errors %}<li>{{ violation }}</li>{% endfor %}</ul>
+    <form method="post" action="/dashboard/queue/{{ item.id }}/accept-fix">
+        <button type="submit" class="contrast">Accept self-healing fix</button>
+    </form>
 </article>
 {% endif %}
 
-{% if item.media_path %}
+{% if media %}
+<article>
+    <h3>Reel</h3>
+    <video controls width="270" preload="metadata" src="{{ media.video_url }}">
+        <track kind="subtitles" srclang="en" label="English" src="{{ media.srt_url }}">
+    </video>
+    <p><code>{{ media.file }}</code> &middot; <a href="{{ media.video_url }}">MP4</a> &middot; <a href="{{ media.srt_url }}">SRT</a> &middot; <a href="{{ media.json_url }}">captions JSON</a></p>
+    {% if captions %}
+    <details open><summary>Caption cards ({{ captions|length }})</summary>
+        <ol>{% for c in captions %}<li>{{ c.text }} <small>({{ c.start|round(1) }}s → {{ c.end|round(1) }}s)</small></li>{% endfor %}</ol>
+    </details>
+    {% endif %}
+</article>
+{% elif item.media_path %}
 <article>
     <h3>Media</h3>
-    <p><code>{{ item.media_path }}</code></p>
+    <p><code>{{ item.media_path }}</code> <em>(legacy path — regenerate reel for playback)</em></p>
+</article>
+{% endif %}
+
+<article>
+    <h3>LinkedIn preview</h3>
+    <div style="border:1px solid #ccc;padding:12px;border-radius:8px;">
+        <strong>JA Assure — {{ item.brand }}</strong>
+        <p style="white-space: pre-wrap;">{{ item.final_content or item.draft_content }}</p>
+        <small>Terms apply. Not financial advice.</small>
+    </div>
+    <h3>X / thread preview</h3>
+    <div style="border:1px solid #ccc;padding:12px;border-radius:8px;">
+        <p style="white-space: pre-wrap;">{{ (item.final_content or item.draft_content)[:280] }}</p>
+    </div>
+</article>
+
+{% if pack %}
+<article>
+    <h3>Multi-format pack</h3>
+    {% if pack.thread %}<h4>Thread</h4><ol>{% for t in pack.thread %}<li>{{ t }}</li>{% endfor %}</ol>{% endif %}
+    {% if pack.carousel %}<h4>Carousel</h4><ol>{% for s in pack.carousel %}<li>{{ s }}</li>{% endfor %}</ol>{% endif %}
+    {% if pack.variant_a %}<p><strong>A:</strong> {{ pack.variant_a }}</p>{% endif %}
+    {% if pack.variant_b %}<p><strong>B:</strong> {{ pack.variant_b }}</p>{% endif %}
+    {% if pack.video_script %}<h4>Video script</h4><p>{{ pack.video_script }}</p>{% endif %}
+    {% if pack.focus_group %}<h4>Focus group</h4><ul>{% for n in pack.focus_group %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
 </article>
 {% endif %}
 

@@ -2,6 +2,65 @@
 {% block title %}Queue — JA Assure Review{% endblock %}
 {% block content %}
 <h2>Pending Queue ({{ items|length }})</h2>
+{% if banner %}<article><strong>{{ banner }}</strong></article>{% endif %}
+<article>
+    <h3>Generate Campaign</h3>
+    <form method="post" action="/dashboard/generate">
+        <div class="grid">
+            <label>Brand
+                <select name="brand" required>
+                    <option value="Jade">Jade</option>
+                    <option value="Jaguar Transit">Jaguar Transit</option>
+                    <option value="DoctorShield">DoctorShield</option>
+                </select>
+            </label>
+            <label>Platform
+                <select name="platform">
+                    <option value="linkedin">linkedin</option>
+                    <option value="instagram">instagram</option>
+                    <option value="x">x</option>
+                    <option value="tiktok">tiktok</option>
+                    <option value="blog">blog</option>
+                </select>
+            </label>
+            <label>Language
+                <select name="language">
+                    <option value="en">en</option>
+                    <option value="ms">ms</option>
+                    <option value="id">id</option>
+                    <option value="th">th</option>
+                    <option value="zh">zh</option>
+                </select>
+            </label>
+            <label>Type
+                <select name="content_type">
+                    <option value="post">post</option>
+                    <option value="video">video</option>
+                    <option value="carousel">carousel</option>
+                </select>
+            </label>
+        </div>
+        <label>Topic<input name="topic" placeholder="e.g. SIJE memo cover, SMC consent review"></label>
+        <button type="submit">Generate Campaign</button>
+    </form>
+</article>
+<article>
+    <h3>Newsjack from competitor intel</h3>
+    <form method="post" action="/dashboard/newsjack">
+        <div class="grid">
+            <label>Brand
+                <select name="brand" required>
+                    <option value="Jade">Jade</option>
+                    <option value="Jaguar Transit">Jaguar Transit</option>
+                    <option value="DoctorShield">DoctorShield</option>
+                </select>
+            </label>
+            <label>Niche<input name="niche" value="jewellers block"></label>
+            <label>Country<input name="country" value="Singapore"></label>
+        </div>
+        <button type="submit">Research + Generate</button>
+    </form>
+</article>
 <table>
     <thead>
         <tr><th>Brand</th><th>Platform</th><th>Language</th><th>Draft</th><th>Retries</th><th>Actions</th></tr>

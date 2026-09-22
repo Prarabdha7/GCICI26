@@ -6,7 +6,7 @@ the full topology; this is the core slice Phase 2 operates on.
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 
 class MarketingState(TypedDict):
@@ -14,6 +14,11 @@ class MarketingState(TypedDict):
     brand: str
     platform: str
     language: str
+    topic: NotRequired[str]
+    content_type: NotRequired[str]
+    enable_adversarial: NotRequired[bool]
+    audit_transcript: NotRequired[str]
+    healed_content: NotRequired[str]
     compliance_errors: list[str]
     retry_count: int
     feedback_guidance: str

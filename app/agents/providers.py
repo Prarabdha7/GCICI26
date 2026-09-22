@@ -164,3 +164,88 @@ def get_hunter_contacts(domain: str, *, api_key: str | None = None) -> list[dict
     )
     response.raise_for_status()
     return response.json().get("data", {}).get("emails", [])
+
+
+# --------------------------------------------------------------------------- #
+# Zero-key mocks — never change the strict get_* above (tests assert they raise).
+# Callers try strict first, then fall back to these so demos never crash.
+# --------------------------------------------------------------------------- #
+
+MOCK_SEARCH_RESULTS: list[dict[str, Any]] = [
+    {"title": "Chubb Jewellers Block — HK exhibition limits tightened", "url": "https://example.test/chubb-jade", "snippet": "Chubb/Lloyds syndicates now require 7-day pre-approval for off-premises memo goods; exhibition transit sub-limits cut 20%."},
+    {"title": "MPS raises discretionary defence subscriptions 14%", "url": "https://example.test/mps-doctorshield", "snippet": "Medical Protection Society hikes aesthetic/ortho subscriptions; cover remains discretionary not contractual — doctors seek binding policies."},
+    {"title": "AXA XL marine cargo excludes unattended-vehicle theft", "url": "https://example.test/axa-jaguar", "snippet": "Regional cargo insurers impose 48h reporting deadlines and unattended-vehicle exclusions; SME couriers struggle with manual claims."},
+]
+
+MOCK_PROSPECTS: list[dict[str, Any]] = [
+    {"company_name": "Orchard Gem House", "website": "https://orchard-gem.test"},
+    {"company_name": "KL Goldsmith Collective", "website": "https://kl-gold.test"},
+    {"company_name": "Causeway Secure Logistics", "website": "https://causeway-logistics.test"},
+    {"company_name": "Novena Specialist Clinic", "website": "https://novena-clinic.test"},
+]
+
+
+class MockSearchProvider(BaseSearchProvider):
+    """Deterministic zero-cost search — brand-aware slice of MOCK_SEARCH_RESULTS."""
+
+    def search(self, query: str, *, max_results: int = 5) -> list[dict[str, Any]]:
+        q = (query or "").lower()
+        if "doctor" in q or "medic" in q or "clinic" in q:
+            preferred = [r for r in MOCK_SEARCH_RESULTS if "mps" in r["url"] or "doctorshield" in r["url"]]
+        elif "transit" in q or "cargo" in q or "logistic" in q or "jaguar" in q:
+            preferred = [r for r in MOCK_SEARCH_RESULTS if "axa" in r["url"] or "jaguar" in r["url"]]
+        else:
+            preferred = [r for r in MOCK_SEARCH_RESULTS if "chubb" in r["url"] or "jade" in r["url"]]
+        rest = [r for r in MOCK_SEARCH_RESULTS if r not in preferred]
+        return (preferred + rest)[:max_results]
+
+
+class MockDiscoveryProvider(BaseDiscoveryProvider):
+    """Deterministic prospect list filtered by niche keywords."""
+
+    def discover(self, *, niche: str, country: str, max_results: int = 10) -> list[dict[str, Any]]:
+        n = (niche or "").lower()
+        if "clinic" in n or "medic" in n or "doctor" in n:
+            picks = [p for p in MOCK_PROSPECTS if "clinic" in p["website"]]
+        elif "courier" in n or "transit" in n or "logistic" in n or "cargo" in n:
+            picks = [p for p in MOCK_PROSPECTS if "logistics" in p["website"]]
+        elif "jewel" in n or "gold" in n or "gem" in n:
+            picks = [p for p in MOCK_PROSPECTS if "gem" in p["website"] or "gold" in p["website"]]
+        else:
+            picks = MOCK_PROSPECTS
+        return picks[:max_results]
+
+
+class MockScrapeGraphClient:
+    """Offline markdown extractor — returns canned competitor excerpts."""
+
+    def extract_markdown(self, url: str) -> str:
+        return f"# Competitor brief ({url})\n\nKey shift: tighter warranties, slower onboarding. Gap for JA Assure: instant memo / per-consignment bind + contractual wording. Source: cached zero-key digest."
+
+
+def get_search_provider_resilient() -> BaseSearchProvider:
+    try:
+        return get_search_provider()
+    except ProviderError:
+        return MockSearchProvider()
+
+
+def get_discovery_provider_resilient() -> BaseDiscoveryProvider:
+    try:
+        return get_discovery_provider()
+    except ProviderError:
+        return MockDiscoveryProvider()
+
+
+def get_scraper_resilient() -> ScrapeGraphClient | MockScrapeGraphClient:
+    if settings.scrapegraph_api_key:
+        return ScrapeGraphClient()
+    return MockScrapeGraphClient()
+
+
+def get_hunter_contacts_resilient(domain: str) -> list[dict[str, Any]]:
+    try:
+        return get_hunter_contacts(domain)
+    except ProviderError:
+        local = (domain or "").split(".")[0].replace("-", " ").title()
+        return [{"value": f"contact@{domain}", "first_name": local, "position": "Operations Manager"}] if domain else []

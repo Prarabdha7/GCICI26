@@ -106,3 +106,58 @@ def get_publisher() -> BasePublisher:
     if settings.ayrshare_api_key:
         return AyrsharePublisher()
     raise PublisherError("No publisher configured: set BUFFER_ACCESS_TOKEN or AYRSHARE_API_KEY.")
+
+
+class MockPublisher(BasePublisher):
+    """Zero-key autonomous dispatcher — simulates Buffer/Ayrshare for demos.
+
+    Never touches the network. Returns deterministic mock- post IDs so the
+    approved -> scheduled -> published lifecycle can be demoed with no keys.
+    """
+
+    def publish(self, item: ContentQueue) -> str:
+        text = (item.final_content or item.draft_content or "")[:40]
+        digest = abs(hash(f"{item.id}:{item.brand}:{item.platform}:{text}")) % 90000 + 10000
+        return f"mock-{item.platform}-{digest}"
+
+
+def get_publisher_resilient() -> BasePublisher:
+    """Strict keys first, mock fallback for zero-key demos."""
+    try:
+        return get_publisher()
+    except PublisherError:
+        return MockPublisher()
+
+
+def publish_with_retry(publisher: BasePublisher, item: ContentQueue, *, attempts: int = 3) -> str:
+    """Exponential-backoff retry for transient HTTP failures. Raises PublisherError after budget."""
+    import time
+
+    last: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return publisher.publish(item)
+        except PublisherError as exc:
+            last = exc
+            # MockPublisher never fails transiently — re-raise immediately
+            if isinstance(publisher, MockPublisher):
+                raise
+            if attempt < attempts:
+                time.sleep(0.5 * (2 ** (attempt - 1)))
+    raise PublisherError(f"publish failed after {attempts} attempts: {last}")
+
+
+def simulate_engagement(item: ContentQueue) -> dict:
+    """Deterministic pseudo-analytics so the feedback loop has data with no keys."""
+    seed = abs(hash(f"{item.id}:{item.brand}:{item.platform}")) % 1000
+    impressions = 800 + (seed * 7) % 4200
+    ctr = 0.018 + (seed % 40) / 1000.0
+    clicks = int(impressions * ctr)
+    return {
+        "impressions": impressions,
+        "clicks": clicks,
+        "shares": (seed % 47),
+        "ctr": round(clicks / impressions, 4) if impressions else 0.0,
+        "mock": True,
+        "post_id": item.external_post_id,
+    }

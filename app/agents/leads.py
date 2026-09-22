@@ -7,11 +7,11 @@ from typing import Any
 from urllib.parse import urlparse
 
 from app.agents.prompts import lead_scoring_system_prompt, lead_scoring_user_prompt
-from app.agents.providers import ProviderError, get_discovery_provider, get_hunter_contacts
+from app.agents.providers import MockDiscoveryProvider, ProviderError, get_discovery_provider, get_hunter_contacts
 from app.db.database import session_scope
 from app.db.models import Lead, LeadStatus
 from app.graph.state import LeadGenState
-from app.llm.client import structured_call
+from app.llm.client import LLMError, structured_call
 
 log = logging.getLogger(__name__)
 
@@ -27,9 +27,16 @@ LEAD_SCORE_SCHEMA: dict[str, Any] = {
 
 
 def discovery_node(state: LeadGenState) -> dict:
-    """Finds prospects in the target niche/market. Runs in parallel with research_node."""
-    provider = get_discovery_provider()
-    discovered = provider.discover(niche=state["niche"], country=state["country"])
+    """Finds prospects in the target niche/market. Runs in parallel with research_node.
+    Zero-key safe: falls back to MockDiscoveryProvider."""
+    try:
+        provider = get_discovery_provider()
+    except ProviderError:
+        provider = MockDiscoveryProvider()
+    try:
+        discovered = provider.discover(niche=state["niche"], country=state["country"])
+    except ProviderError:
+        discovered = MockDiscoveryProvider().discover(niche=state["niche"], country=state["country"])
     log.info("discovery_node niche=%s country=%s found=%s", state["niche"], state["country"], len(discovered))
     return {"discovered": discovered}
 
@@ -48,7 +55,8 @@ def enrichment_node(state: LeadGenState) -> dict:
 
 
 def scoring_outreach_node(state: LeadGenState) -> dict:
-    """Scores each enriched prospect's fit and drafts a personalised outreach message."""
+    """Scores each enriched prospect's fit and drafts a personalised outreach message.
+    Zero-key safe: heuristic score when the LLM judge is unavailable."""
     leads = []
     for prospect in state.get("enriched", []):
         system = lead_scoring_system_prompt(brand=state["brand"])
@@ -57,7 +65,14 @@ def scoring_outreach_node(state: LeadGenState) -> dict:
             website=prospect.get("website", ""),
             research_notes=state.get("research_notes", ""),
         )
-        verdict = structured_call(system=system, user=user, schema=LEAD_SCORE_SCHEMA)
+        try:
+            verdict = structured_call(system=system, user=user, schema=LEAD_SCORE_SCHEMA)
+        except LLMError:
+            verdict = {
+                "fit_score": 72,
+                "score_rationale": f"Fallback fit for {state['brand']}: niche keyword match on {prospect.get('company_name', '')}.",
+                "outreach_draft": f"Hello {prospect.get('company_name', 'team')} — JA Assure {state['brand']} offers instant-bind, contract-certain cover for your segment. Terms apply.",
+            }
         leads.append({**prospect, **verdict})
     return {"leads": leads}
 

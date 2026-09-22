@@ -1,18 +1,12 @@
 """Graph assembly: wires the nodes and the compliance retry cycle together.
 
-    START -> memory_retrieval -> content -> localization -> compliance_gate -> route_after_compliance
-                                      ^                                              |    |         |
-                                      |______________ non-compliant _________________|    |         |
-                                               (retry_count <= max)                        |         |
-                                                                                            v         v
-                                                                                        persist   manual_intervention
-                                                                                          |               |
-                                                                                          v               v
-                                                                                         END             END
-                                                                          (retry_count > max, circuit breaker)
-
+    START -> memory -> content -> localization -+-> video -> compliance -> route
+                                       ^        |                          |  |  |
+                                       |________ non-compliant ____________|  |  |
+                                                (retry_count <= max)          v  v
+                                                                          persist manual
 memory_retrieval runs once, before the first draft — not on retry cycles, which
-loop straight back to content_node (CLAUDE.md section 4).
+loop straight back to content_node. Video runs only for reels/tiktok.
 """
 
 from __future__ import annotations
@@ -29,9 +23,21 @@ from app.graph.nodes import (
     manual_intervention_node,
     memory_retrieval_node,
     persist_node,
+    video_assembly_node,
 )
 from app.graph.routing import COMPLIANT, CONTENT, MANUAL_INTERVENTION, route_after_compliance
 from app.graph.state import MarketingState
+
+VIDEO_PLATFORMS = {"instagram", "tiktok"}
+
+
+def route_after_localization(state: MarketingState) -> str:
+    platform = (state.get("platform") or "").lower()
+    raw_ct = state.get("content_type")
+    ct = raw_ct.lower() if isinstance(raw_ct, str) else ""
+    if platform in VIDEO_PLATFORMS or ct == "video":
+        return "video"
+    return "compliance_gate"
 
 
 def build_graph(checkpointer: BaseCheckpointSaver | None = None) -> CompiledStateGraph:
@@ -40,6 +46,7 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None) -> CompiledStat
     graph.add_node("memory_retrieval", memory_retrieval_node)
     graph.add_node("content", content_node)
     graph.add_node("localization", localization_node)
+    graph.add_node("video", video_assembly_node)
     graph.add_node("compliance_gate", compliance_gate_node)
     graph.add_node("persist", persist_node)
     graph.add_node("manual_intervention", manual_intervention_node)
@@ -47,7 +54,12 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None) -> CompiledStat
     graph.add_edge(START, "memory_retrieval")
     graph.add_edge("memory_retrieval", "content")
     graph.add_edge("content", "localization")
-    graph.add_edge("localization", "compliance_gate")
+    graph.add_conditional_edges(
+        "localization",
+        route_after_localization,
+        {"video": "video", "compliance_gate": "compliance_gate"},
+    )
+    graph.add_edge("video", "compliance_gate")
     graph.add_conditional_edges(
         "compliance_gate",
         route_after_compliance,
