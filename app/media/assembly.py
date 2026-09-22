@@ -200,6 +200,170 @@ def render_caption_card(
         return None
 
 
+REEL_W, REEL_H = 1080, 1920
+REEL_FPS = 12
+
+
+def estimate_duration(script: str) -> float:
+    """Spoken-duration estimate (~850 chars/min) when the real MP3 length is unknown."""
+    return max(4.0, len(script or "") / 14.0)
+
+
+def render_reel_canvas(script: str, brand: str = "Jade", size: tuple[int, int] = (1296, 2304)):
+    """Full-bleed branded canvas (oversized so the Ken Burns crop can glide)."""
+    from PIL import Image, ImageDraw
+
+    W, H = size
+    bg = _brand_color(brand)
+    img = Image.new("RGB", (W, H), bg)
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([0, 0, W, 300], fill=(0, 0, 0))
+    draw.text((70, 100), f"JA ASSURE — {brand.upper()}", fill=(212, 175, 55))
+    words, lines, cur = (script or "")[:300].split(), [], ""
+    for w in words:
+        if len(cur) + len(w) + 1 > 26:
+            lines.append(cur)
+            cur = w
+        else:
+            cur = f"{cur} {w}".strip()
+    if cur:
+        lines.append(cur)
+    y = H // 2 - len(lines[:8]) * 40
+    for line in lines[:8]:
+        draw.text((70, y), line, fill=(253, 251, 247))
+        y += 80
+    draw.text((70, H - 120), "Terms apply. Not financial advice.", fill=(160, 160, 160))
+    return img
+
+
+def caption_for_time(captions: list[dict], t: float) -> str:
+    for cap in captions:
+        if cap["start"] <= t < cap["end"]:
+            return cap["text"]
+    return ""
+
+
+def assemble_kenburns_reel(
+    *, script: str, language: str, brand: str = "Jade",
+    audio_path: Path | None = None, output_dir: Path = TEMP_DIR, run_id: str = "",
+    background_path: Path | None = None,
+) -> Path:
+    """2.5D Ken Burns reel with zero paid APIs and no moviepy.
+
+    Background order: explicit `background_path` → `assets/video/<brand>_loop.mp4`
+    (local B-roll override) → procedural brand canvas. Slow push-in over the
+    backdrop + bottom-third captions + real edge-tts voiceover muxed in with
+    the bundled ffmpeg binary. Raises honestly when Pillow/imageio/ffmpeg is
+    missing (demo callers may stub).
+    """
+    import imageio.v2 as imageio
+    import imageio_ffmpeg
+    from PIL import Image, ImageDraw
+
+    run_id = run_id or uuid.uuid4().hex
+    output_dir.mkdir(parents=True, exist_ok=True)
+    video_path = output_dir / f"reel_{run_id}.mp4"
+
+    timings = estimate_timings(script, estimate_duration(script))
+    captions = chunk_captions(timings)
+    total = max((c["end"] for c in captions), default=estimate_duration(script))
+    _persist_captions(output_dir, run_id, captions, timings)
+
+    canvas = _reel_backdrop(script, brand=brand, background_path=background_path)
+    CW, CH = canvas.size
+    n_frames = max(1, int(total * REEL_FPS))
+    silent_path = output_dir / f"silent_{run_id}.mp4"
+    writer = imageio.get_writer(str(silent_path), fps=REEL_FPS, codec="libx264",
+                                macro_block_size=None, quality=7)
+    try:
+        for i in range(n_frames):
+            t = i / REEL_FPS
+            progress = i / max(1, n_frames - 1)
+            zoom = 1.0 + 0.12 * progress  # slow push-in
+            cw, ch = int(REEL_W / zoom), int(REEL_H / zoom)
+            x = int((CW - cw) * (0.5 + 0.12 * progress))  # gentle rightward drift
+            y = int((CH - ch) * 0.5)
+            frame = canvas.crop((x, y, x + cw, y + ch)).resize((REEL_W, REEL_H), Image.BILINEAR)
+            caption = caption_for_time(captions, t)
+            if caption:
+                bar = Image.new("RGBA", (REEL_W, 300), (0, 0, 0, 190))
+                d = ImageDraw.Draw(bar)
+                words, lines, cur = caption.split(), [], ""
+                for w in words:
+                    if len(cur) + len(w) + 1 > 34:
+                        lines.append(cur)
+                        cur = w
+                    else:
+                        cur = f"{cur} {w}".strip()
+                if cur:
+                    lines.append(cur)
+                ty = 40
+                for line in lines[:3]:
+                    d.text((60, ty), line, fill=(255, 255, 255))
+                    ty += 72
+                frame = frame.convert("RGBA")
+                frame.alpha_composite(bar, (0, REEL_H - 340))
+                frame = frame.convert("RGB")
+            import numpy as np
+
+            writer.append_data(np.asarray(frame))
+    finally:
+        writer.close()
+
+    if audio_path is not None and audio_path.exists():
+        import subprocess
+
+        ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        final_path = output_dir / f"reel_{run_id}_final.mp4"
+        subprocess.run(
+            [ffmpeg, "-y", "-i", str(silent_path), "-i", str(audio_path),
+             "-c:v", "copy", "-c:a", "aac", "-shortest", str(final_path)],
+            check=True, capture_output=True,
+        )
+        silent_path.unlink(missing_ok=True)
+        return final_path
+    silent_path.rename(video_path)
+    return video_path
+
+
+def _reel_backdrop(script: str, brand: str, background_path: Path | None = None, assets_dir: Path | None = None):
+    """Explicit B-roll path → per-brand loop override → procedural canvas."""
+    from PIL import Image
+
+    assets = assets_dir if assets_dir is not None else settings.video_assets_dir
+    candidates = []
+    if background_path is not None:
+        candidates.append(Path(background_path))
+    brand_file = (assets / f"{(brand or '').strip().lower().replace(' ', '_')}_loop.mp4")
+    candidates.append(brand_file)
+    for candidate in candidates:
+        try:
+            if candidate.is_file():
+                import imageio.v2 as imageio
+
+                frame = imageio.get_reader(str(candidate)).get_data(0)
+                return Image.fromarray(frame).resize((1296, 2304))
+        except Exception as exc:
+            log.warning("B-roll %s unreadable (%s) — procedural canvas", candidate, exc)
+    return render_reel_canvas(script, brand=brand)
+
+
+def _persist_captions(output_dir: Path, run_id: str, captions: list[dict], timings: list[dict]) -> None:
+    import json as _json
+
+    (output_dir / f"reel_{run_id}.json").write_text(
+        _json.dumps({"captions": captions, "words": timings[:200]}), encoding="utf-8")
+
+    def _ts(s: float) -> str:
+        ms = int(s * 1000)
+        return f"{ms//3600000:02d}:{(ms//60000)%60:02d}:{(ms//1000)%60:02d},{ms%1000:03d}"
+
+    srt_lines = []
+    for i, cap in enumerate(captions, 1):
+        srt_lines += [str(i), f"{_ts(cap['start'])} --> {_ts(cap['end'])}", cap["text"], ""]
+    (output_dir / f"reel_{run_id}.srt").write_text("\n".join(srt_lines), encoding="utf-8")
+
+
 def assemble_video(
     *,
     script: str,
@@ -229,26 +393,16 @@ def assemble_video(
         render_caption_card(script, brand=brand, output_path=output_dir / f"caption_{run_id}.png")
     except Exception:
         pass
-    # Encoder unavailable (moviepy broken/missing in this env): in DEMO_MODE
-    # write a stub reel so the walkthrough still shows captions/SRT layout.
-    # Real mode returns honestly with no fake media file.
+    # moviepy unavailable: render a real MP4 with the built-in 2.5D Ken Burns
+    # engine (Pillow frames + bundled ffmpeg). Raises honestly when the
+    # toolchain is missing; video_assembly_node turns that into no-media.
     if AudioFileClip is None or ColorClip is None:
-        from app.config import settings as _settings2
-
-        if not _settings2.demo_mode:
-            raise RuntimeError("video encoder unavailable in real mode — media skipped honestly")
-        total_duration = max(3.0, len((script or "").split()) * 0.4)
-        timings = estimate_timings(script, total_duration)
-        captions = chunk_captions(timings)
-        try:
-            import json as _json
-
-            (output_dir / f"reel_{run_id}.json").write_text(_json.dumps({"captions": captions, "words": timings[:200]}), encoding="utf-8")
-            (output_dir / f"reel_{run_id}.srt").write_text("\n".join(c["text"] for c in captions), encoding="utf-8")
-            video_path.write_bytes(b"DEMO stub mp4 - install moviepy 1.0.3 on py3.10 for real encoding")
-        except Exception:
-            pass
-        return video_path
+        return assemble_kenburns_reel(
+            script=script, language=language, brand=brand,
+            audio_path=audio_path if audio_path.exists() else None,
+            output_dir=output_dir, run_id=run_id,
+            background_path=background_path,
+        )
     audio_clip = AudioFileClip(str(audio_path))
     total_duration = float(getattr(audio_clip, "duration", 0) or 0) or 3.0
 

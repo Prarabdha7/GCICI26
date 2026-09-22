@@ -42,6 +42,11 @@ TEMP_MPY_*
 /local/*
 !/local/samples.example.json
 
+# --- agent memory vault (generated, Obsidian-compatible) ---
+# Rebuilt from live DB rows via GET /api/memory/vault. Open the folder in
+# Obsidian for the interactive Graph View, or browse it in the /app console.
+/vault/
+
 # --- langgraph / caches ---
 .langgraph_api/
 checkpoints.sqlite

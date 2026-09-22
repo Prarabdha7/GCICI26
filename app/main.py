@@ -94,6 +94,9 @@ try:
     frontend_dir = settings.base_dir / "frontend"
     if frontend_dir.is_dir():
         app.mount("/app", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
+    vault_dir = settings.base_dir / "vault"
+    vault_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/vault", StaticFiles(directory=str(vault_dir), html=False), name="vault")
 except Exception:
     pass
 

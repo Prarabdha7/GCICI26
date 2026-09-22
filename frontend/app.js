@@ -217,8 +217,51 @@ async function renderLeads() {
       <td>${esc(l.segment || "")} · ${esc(l.country || "")}</td><td>${l.fit_score ?? "—"}</td><td>${esc((l.score_rationale || "") + (l.score_rationale ? " — " : "") + (l.outreach_draft || ""))}</td></tr>`).join("") || `<tr><td colspan="4" class="mut">No leads yet.</td></tr>`}</tbody></table></div>`;
 }
 
+/* ---------------- memory (Second Brain) ---------------- */
+const KIND_COLORS = { brand: "#38bdf8", regulation: "#a78bfa", feedback: "#f59e0b", asset: "#22c55e", intel: "#f472b6" };
+
+async function renderMemory() {
+  let graph = { nodes: [], edges: [] };
+  try { graph = await api("/api/memory/vault"); }
+  catch (e) { showBanner("Vault unavailable honestly: " + e.message, "err"); }
+  const W = 680, H = 380, cx = W / 2, cy = H / 2;
+  const kinds = [...new Set(graph.nodes.map(n => n.kind))];
+  const pos = {};
+  graph.nodes.forEach((n, i) => {
+    const ring = kinds.indexOf(n.kind);
+    const same = graph.nodes.filter(x => x.kind === n.kind);
+    const k = same.indexOf(n);
+    const R = 60 + ring * 62;
+    const a = (2 * Math.PI * k) / Math.max(1, same.length) + ring * 0.5;
+    pos[n.id] = [cx + R * Math.cos(a), cy + R * Math.sin(a) * 0.72];
+  });
+  const byId = Object.fromEntries(graph.nodes.map(n => [n.id, n]));
+  const edgeSvg = graph.edges.filter(e => pos[e[0]] && pos[e[1]])
+    .map(e => `<line x1="${pos[e[0]][0]}" y1="${pos[e[0]][1]}" x2="${pos[e[1]][0]}" y2="${pos[e[1]][1]}" stroke="#334155"/>`).join("");
+  const nodeSvg = graph.nodes.map(n => {
+    const [x, y] = pos[n.id];
+    return `<g class="vnode" data-path="${esc(n.path || "")}" style="cursor:pointer">
+      <circle cx="${x}" cy="${y}" r="9" fill="${KIND_COLORS[n.kind] || "#94a3b8"}"/>
+      <text x="${x + 12}" y="${y + 4}" fill="#f1f5f9" font-size="11">${esc(n.label)}</text></g>`;
+  }).join("");
+  view.innerHTML = `
+    <h2>Memory vault <span class="mut">(every node is a real DB row — open the folder in Obsidian for Graph View)</span></h2>
+    <div class="grid two"><div class="card">
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;background:#0b1220;border-radius:8px">${edgeSvg}${nodeSvg}</svg>
+      <p class="mut">${graph.nodes.length} nodes · ${graph.edges.length} links · brands <span style="color:#38bdf8">●</span> regulations <span style="color:#a78bfa">●</span> feedback <span style="color:#f59e0b">●</span> assets <span style="color:#22c55e">●</span> intel <span style="color:#f472b6">●</span></p>
+    </div><div class="card"><h3>Node preview</h3><div id="vprev" class="mut">Click a node to read its markdown (served from <code>/vault/</code>).</div></div></div>`;
+  view.querySelectorAll(".vnode").forEach(g => g.addEventListener("click", async () => {
+    const p = g.dataset.path;
+    if (!p) return;
+    try {
+      const md = await (await fetch("/vault/" + p)).text();
+      $("#vprev").innerHTML = `<pre class="prewrap">${esc(md.slice(0, 2000))}</pre><p><a href="/vault/${esc(p)}">open raw →</a></p>`;
+    } catch (e) { $("#vprev").textContent = "Could not load file honestly: " + e.message; }
+  }));
+}
+
 /* ---------------- boot ---------------- */
-const routes = { queue: renderQueue, generate: renderGenerate, metrics: renderMetrics, leads: renderLeads };
+const routes = { queue: renderQueue, generate: renderGenerate, metrics: renderMetrics, leads: renderLeads, memory: renderMemory };
 $("#nav").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   document.querySelectorAll("#nav button").forEach(x => x.classList.remove("active"));

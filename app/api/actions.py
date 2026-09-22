@@ -251,3 +251,13 @@ def queue_feedback(content_id: int, db: Session = Depends(get_db)) -> list[dict]
     rows = list(db.scalars(select(_FM).where(_FM.content_id == content_id).order_by(_FM.timestamp)))
     return [{"error_tag": r.error_tag, "human_note": r.human_note,
              "at": r.timestamp.isoformat() if r.timestamp else None} for r in rows]
+
+
+@router.get("/memory/vault")
+def memory_vault(db: Session = Depends(get_db)) -> dict:
+    """Rebuild the Obsidian-compatible memory vault from live DB rows and
+    return its knowledge graph. Markdown files land under vault/ (gitignored)
+    and are servable at /vault/*.md for reading or opening in Obsidian."""
+    from app.memory.vault import export_vault
+
+    return export_vault(db)
