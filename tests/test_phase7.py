@@ -68,6 +68,20 @@ def test_buffer_publisher_raises_on_graphql_errors(monkeypatch) -> None:
         publisher_module.BufferPublisher(access_token="key").publish(item)
 
 
+def test_buffer_publisher_translates_http_error_status_into_publisher_error(monkeypatch) -> None:
+    """A real bug found via live testing: an expired/invalid token gets a 401
+    from Buffer's actual API — raise_for_status() must not escape as a raw
+    httpx.HTTPStatusError, or it crashes the whole scheduler job unhandled."""
+    monkeypatch.setattr(
+        publisher_module.httpx, "post",
+        lambda *a, **kw: _fake_response({"error": "invalid token"}, status_code=401),
+    )
+    item = ContentQueue(brand="Jade", platform="linkedin", language="en", draft_content="hello")
+
+    with pytest.raises(publisher_module.PublisherError):
+        publisher_module.BufferPublisher(access_token="expired-key").publish(item)
+
+
 def test_buffer_publisher_prefers_final_content_over_draft(monkeypatch) -> None:
     captured = {}
 
@@ -103,6 +117,24 @@ def test_ayrshare_publisher_returns_post_id(monkeypatch) -> None:
     assert post_id == "ayr-1"
 
 
+def test_ayrshare_publisher_hits_the_api_host_not_the_dashboard_host(monkeypatch) -> None:
+    """Regression guard: app.ayrshare.com is the web dashboard, not the API —
+    confirmed live (GET /api/user against api.ayrshare.com succeeds; the
+    dashboard host doesn't serve this endpoint)."""
+    captured = {}
+
+    def fake_post(url, **kw):
+        captured["url"] = url
+        return _fake_response({"postIds": [{"id": "ayr-1"}]})
+
+    monkeypatch.setattr(publisher_module.httpx, "post", fake_post)
+    item = ContentQueue(brand="Jade", platform="instagram", language="en", draft_content="hello")
+
+    publisher_module.AyrsharePublisher(api_key="key").publish(item)
+
+    assert captured["url"] == "https://api.ayrshare.com/api/post"
+
+
 def test_ayrshare_publisher_requires_api_key() -> None:
     item = ContentQueue(brand="Jade", platform="instagram", language="en", draft_content="hello")
     with pytest.raises(publisher_module.PublisherError):
@@ -115,6 +147,17 @@ def test_ayrshare_publisher_raises_without_post_ids(monkeypatch) -> None:
 
     with pytest.raises(publisher_module.PublisherError):
         publisher_module.AyrsharePublisher(api_key="key").publish(item)
+
+
+def test_ayrshare_publisher_translates_http_error_status_into_publisher_error(monkeypatch) -> None:
+    monkeypatch.setattr(
+        publisher_module.httpx, "post",
+        lambda *a, **kw: _fake_response({"error": "invalid token"}, status_code=401),
+    )
+    item = ContentQueue(brand="Jade", platform="instagram", language="en", draft_content="hello")
+
+    with pytest.raises(publisher_module.PublisherError):
+        publisher_module.AyrsharePublisher(api_key="expired-key").publish(item)
 
 
 # --------------------------------------------------------------------------- #

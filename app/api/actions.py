@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.db.database import get_db
 from app.db.models import ContentQueue, ContentStatus, FeedbackMemory
+from app.integrations.obsidian import export_execution_to_obsidian
 from app.memory.store import create_feedback_entry
 
 router = APIRouter(prefix="/api", tags=["actions"])
@@ -123,16 +124,22 @@ def _run_pipeline(*, brand: str, platform: str, language: str, topic: str, conte
     from app.graph.graph import build_graph
 
     graph = build_graph()
+    thread_id = str(uuid.uuid4())
     try:
-        return graph.invoke(
+        final_state = graph.invoke(
             {
                 "draft_content": "", "brand": brand, "platform": platform,
                 "language": language, "topic": topic, "content_type": content_type,
                 "enable_adversarial": True, "compliance_errors": [], "retry_count": 0,
                 "feedback_guidance": "", "media_path": None, "status": "", "content_id": None,
             },
-            config={"configurable": {"thread_id": str(uuid.uuid4())}},
+            config={"configurable": {"thread_id": thread_id}},
         )
+        try:
+            export_execution_to_obsidian(state=final_state, thread_id=thread_id)
+        except Exception:
+            pass
+        return final_state
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Generation unavailable honestly: {exc}") from exc
 

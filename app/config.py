@@ -48,6 +48,14 @@ class Settings(BaseSettings):
     max_compliance_retries: int = 3
     feedback_memory_limit: int = 5
 
+    # --- optional memory/visual integrations ---
+    obsidian_export_enabled: bool = False
+    obsidian_vault_dir: str = ""
+    excalidraw_export_enabled: bool = False
+    memgpt_base_url: str = ""
+    memgpt_agent_id: str = ""
+    memgpt_timeout_seconds: float = 4.0
+
     # --- demo mode ---------------------------------------------------------
     # Demo writes (fallback copy, mock providers/publisher, stub reels, seed
     # rows) are allowed ONLY when DEMO_MODE=true, and are always labeled

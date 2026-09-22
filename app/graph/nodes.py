@@ -15,6 +15,7 @@ from app.db.database import session_scope
 from app.db.models import ContentStatus
 from app.db.persist import create_content_queue_row
 from app.graph.state import MarketingState
+from app.integrations.memgpt import augment_guidance_with_memgpt
 from app.llm.client import COMPLIANCE_SCHEMA, LLMError, structured_call, text_call
 from app.llm.fallback import fallback_content, fallback_localize, heuristic_compliance_check, self_healing_fix
 from app.media.assembly import assemble_video
@@ -55,10 +56,17 @@ def memory_retrieval_node(state: MarketingState) -> dict:
     with session_scope() as db:
         entries = get_recent_feedback(db, brand=state["brand"], platform=state["platform"])
         engagement = get_recent_engagement(db)
+    local_guidance = format_guidance(entries)
+    guidance = augment_guidance_with_memgpt(
+        brand=state["brand"],
+        platform=state["platform"],
+        local_guidance=local_guidance,
+    )
     return {
-        "feedback_guidance": format_guidance(entries),
+        "feedback_guidance": guidance,
         "engagement_guidance": format_engagement_guidance(
-            engagement, brand=state["brand"], platform=state["platform"]),
+            engagement, brand=state["brand"], platform=state["platform"]
+        ),
     }
 
 

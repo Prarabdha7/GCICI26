@@ -58,16 +58,19 @@ class BufferPublisher(BasePublisher):
         if media_url:
             variables["input"]["media"] = [{"url": media_url}]
 
-        response = httpx.post(
-            self.API_URL,
-            headers={"Authorization": f"Bearer {self.access_token}"},
-            json={
-                "query": "mutation CreatePost($input: CreatePostInput!) { createPost(input: $input) { id } }",
-                "variables": variables,
-            },
-            timeout=30.0,
-        )
-        response.raise_for_status()
+        try:
+            response = httpx.post(
+                self.API_URL,
+                headers={"Authorization": f"Bearer {self.access_token}"},
+                json={
+                    "query": "mutation CreatePost($input: CreatePostInput!) { createPost(input: $input) { id } }",
+                    "variables": variables,
+                },
+                timeout=30.0,
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise PublisherError(f"Buffer publish failed: {exc}") from exc
         data = response.json()
         if data.get("errors"):
             raise PublisherError(f"Buffer publish failed: {data['errors']}")
@@ -77,7 +80,7 @@ class BufferPublisher(BasePublisher):
 class AyrsharePublisher(BasePublisher):
     """Ayrshare's /api/post endpoint."""
 
-    API_URL = "https://app.ayrshare.com/api/post"
+    API_URL = "https://api.ayrshare.com/api/post"
 
     def __init__(self, api_key: str | None = None) -> None:
         self.api_key = api_key if api_key is not None else settings.ayrshare_api_key
@@ -93,10 +96,13 @@ class AyrsharePublisher(BasePublisher):
         if media_url:
             payload["mediaUrls"] = [media_url]
 
-        response = httpx.post(
-            self.API_URL, headers={"Authorization": f"Bearer {self.api_key}"}, json=payload, timeout=30.0
-        )
-        response.raise_for_status()
+        try:
+            response = httpx.post(
+                self.API_URL, headers={"Authorization": f"Bearer {self.api_key}"}, json=payload, timeout=30.0
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise PublisherError(f"Ayrshare publish failed: {exc}") from exc
         data = response.json()
         post_ids = data.get("postIds") or []
         if not post_ids:
@@ -124,14 +130,6 @@ class MockPublisher(BasePublisher):
         text = (item.final_content or item.draft_content or "")[:40]
         digest = abs(hash(f"{item.id}:{item.brand}:{item.platform}:{text}")) % 90000 + 10000
         return f"mock-{item.platform}-{digest}"
-
-
-def get_publisher_resilient() -> BasePublisher:
-    """Strict keys first, mock fallback for zero-key demos."""
-    try:
-        return get_publisher()
-    except PublisherError:
-        return MockPublisher()
 
 
 def publish_with_retry(publisher: BasePublisher, item: ContentQueue, *, attempts: int = 3) -> str:
