@@ -14,16 +14,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.config import settings  # noqa: E402
 from app.db.database import init_db, session_scope  # noqa: E402
 from app.db.models import ContentQueue, ContentStatus, FeedbackMemory, Lead, LeadStatus  # noqa: E402
 
 log = logging.getLogger("seed_demo")
 
-CONTENT_QUEUE_ROWS = [
-    # -- pending: what a reviewer sees first on /dashboard --
+SAMPLE_MEDIA_URL = "/static/sample.mp4"
+
+# -- approved: localized posts across SG / MY / TH, ready for the auto-publisher --
+APPROVED_ROWS = [
     dict(
-        brand="Jade", platform="linkedin", language="en", content_type="post",
-        status=ContentStatus.PENDING.value,
+        brand="Jade", platform="instagram", language="en", content_type="post",
+        status=ContentStatus.APPROVED.value, media_path=SAMPLE_MEDIA_URL,
         draft_content=(
             "Discretion is not a discount. Jade covers what your collection is "
             "actually worth — appraised value, not a guess. Terms, conditions, "
@@ -31,40 +34,28 @@ CONTENT_QUEUE_ROWS = [
         ),
     ),
     dict(
-        brand="Jaguar Transit", platform="x", language="en", content_type="post",
-        status=ContentStatus.PENDING.value,
+        brand="Jaguar Transit", platform="linkedin", language="ms", content_type="post",
+        status=ContentStatus.APPROVED.value, media_path=SAMPLE_MEDIA_URL,
         draft_content=(
-            "One missed handoff can cost more than the shipment. Jaguar Transit "
-            "covers high-value cargo door to door. Subject to formal policy "
-            "wording and underwriting approval."
-        ),
-    ),
-    # -- approved: ready for the auto-publisher worker to pick up --
-    dict(
-        brand="DoctorShield", platform="linkedin", language="en", content_type="post",
-        status=ContentStatus.APPROVED.value,
-        draft_content=(
-            "Clinical judgment is yours. The financial exposure of a claim "
-            "doesn't have to be. DoctorShield — indemnity built for practising "
-            "clinicians. This is general information only and does not "
-            "constitute financial advice."
-        ),
-        final_content=(
-            "Clinical judgment is yours. The financial exposure of a claim "
-            "doesn't have to be. DoctorShield — indemnity built for practising "
-            "clinicians. This is general information only and does not "
-            "constitute financial advice."
+            "Satu kelewatan serah boleh menelan kos lebih daripada nilai barang "
+            "itu sendiri. Jaguar Transit melindungi kargo bernilai tinggi dari "
+            "pintu ke pintu. Tertakluk kepada terma polisi rasmi dan kelulusan "
+            "penajaminan."
         ),
     ),
     dict(
-        brand="Jade", platform="instagram", language="ms", content_type="post",
-        status=ContentStatus.APPROVED.value,
+        brand="DoctorShield", platform="linkedin", language="th", content_type="post",
+        status=ContentStatus.APPROVED.value, media_path=SAMPLE_MEDIA_URL,
         draft_content=(
-            "Setiap barang kemas membawa cerita. Jade melindungi kedai bijih emas "
-            "anda dengan syarat, terma dan pengecualian dikenakan."
+            "การตัดสินใจทางคลินิกเป็นของคุณ ความเสี่ยงทางการเงินจากการเรียกร้องค่าสินไหม "
+            "ไม่จำเป็นต้องเป็นของคุณ DoctorShield — ความคุ้มครองสำหรับแพทย์ผู้ปฏิบัติงาน "
+            "ข้อมูลนี้เป็นข้อมูลทั่วไปเท่านั้น ไม่ถือเป็นคำแนะนำทางการเงิน"
         ),
     ),
-    # -- manual_intervention: circuit-breaker casualties for that tab --
+]
+
+# -- manual_intervention: circuit-breaker casualties for that dashboard tab --
+MANUAL_INTERVENTION_ROWS = [
     dict(
         brand="Jaguar Transit", platform="tiktok", language="en", content_type="post",
         status=ContentStatus.MANUAL_INTERVENTION.value, retry_count=4,
@@ -92,21 +83,20 @@ CONTENT_QUEUE_ROWS = [
     ),
 ]
 
+CONTENT_QUEUE_ROWS = APPROVED_ROWS + MANUAL_INTERVENTION_ROWS
+
+# -- feedback history: aligned to the approved rows' brand/platform above, so
+# get_recent_feedback() has something to surface for exactly what's on screen --
 FEEDBACK_MEMORY_ROWS = [
     dict(
-        brand="Jade", platform="linkedin", error_tag="too_salesy",
+        brand="Jade", platform="instagram", error_tag="too_salesy",
         human_note="Read like a discount ad — Jade never discounts. Reframe "
         "around craftsmanship and discretion, not price.",
     ),
     dict(
-        brand="Jaguar Transit", platform="x", error_tag="wrong_cta",
+        brand="Jaguar Transit", platform="linkedin", error_tag="wrong_cta",
         human_note="CTA said 'Buy now' — B2B logistics buyers don't respond to "
         "that register. Use 'Request a risk assessment' instead.",
-    ),
-    dict(
-        brand="DoctorShield", platform="instagram", error_tag="compliance_risk",
-        human_note="Implied a claim is 'covered automatically' — must always "
-        "cite policy terms and underwriting approval.",
     ),
 ]
 
@@ -150,6 +140,31 @@ LEAD_ROWS = [
 ]
 
 
+def _ensure_sample_media() -> None:
+    """Generates a real sample reel via the Phase 4 pipeline so /static/sample.mp4
+    is an actual playable file, not a broken link, for the SAMPLE_MEDIA_URL
+    referenced by the approved rows above."""
+    sample_path = settings.generated_dir / "sample.mp4"
+    if sample_path.exists():
+        log.info("Sample media already exists at %s — skipping generation.", sample_path)
+        return
+    try:
+        from app.media.assembly import assemble_video
+
+        generated = assemble_video(
+            script="JA Assure. Coverage that understands your business.",
+            language="en", output_dir=settings.generated_dir,
+        )
+        generated.rename(sample_path)
+        log.info("Generated sample media at %s", sample_path)
+    except Exception:
+        log.warning(
+            "Could not generate sample media (edge-tts needs network access) — "
+            "%s will 404 until you run this again with network access.",
+            SAMPLE_MEDIA_URL,
+        )
+
+
 def _seed_content_queue(db) -> int:
     if db.query(ContentQueue).count() > 0:
         log.info("content_queue already has rows — skipping.")
@@ -186,6 +201,7 @@ def _seed_leads(db) -> int:
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)-8s %(message)s")
     init_db()
+    _ensure_sample_media()
     with session_scope() as db:
         _seed_content_queue(db)
         _seed_feedback_memory(db)

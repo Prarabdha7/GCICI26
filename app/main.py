@@ -11,6 +11,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.dashboard import router as dashboard_router
 from app.api.routes import router as api_router
@@ -48,6 +49,10 @@ app = FastAPI(
 
 app.include_router(api_router)
 app.include_router(dashboard_router)
+
+# StaticFiles requires the directory to exist at mount time, before lifespan runs.
+settings.generated_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(settings.generated_dir)), name="static")
 
 
 @app.get("/health", tags=["meta"])

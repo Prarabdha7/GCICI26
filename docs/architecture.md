@@ -204,7 +204,9 @@ sequenceDiagram
 Verified in `tests/test_phase6.py::test_rejection_is_retrievable_by_memory_engine` —
 a rejection through the real HTTP route is immediately retrievable by
 `get_recent_feedback()`, and demonstrated live with the pre-loaded history in
-`scripts/seed_demo.py` (Jade/LinkedIn already carries a "too_salesy" note).
+`scripts/seed_demo.py` (Jade/Instagram already carries a "too_salesy" note,
+aligned with the seeded Jade/Instagram approved post so the retrieval is
+visibly relevant to what's on screen).
 
 ---
 
@@ -213,7 +215,7 @@ a rejection through the real HTTP route is immediately retrievable by
 ```mermaid
 flowchart TD
     S[APScheduler BackgroundScheduler<br/>every PUBLISH_POLL_INTERVAL seconds] --> Q{content_queue<br/>status == approved?}
-    Q -- rows found --> PUB[get_publisher!.publish!]
+    Q -- rows found --> PUB["get_publisher().publish(item)"]
     PUB -- success --> UPD[status = scheduled<br/>external_post_id set]
     PUB -- PublisherError --> SKIP[log + skip<br/>row stays approved, retried next poll]
     Q -- none --> WAIT[wait for next poll]
@@ -223,3 +225,28 @@ flowchart TD
 webhook confirmation step (not yet built) that the post actually went live.
 Nothing publishes without a human approving it first: this worker only ever
 reads rows a human already moved to `approved` via the dashboard.
+
+---
+
+## 6. Static media serving (Phase 8)
+
+Generated media (`assets/generated/`) is mounted at `/static` in `app/main.py`
+so it's servable both to a browser (the dashboard's detail-page video preview)
+and to the publishing providers (Buffer/Ayrshare need a URL they can fetch,
+not a local filesystem path).
+
+```mermaid
+flowchart LR
+    Gen[assemble_video writes to<br/>assets/generated/*.mp4] --> Mount["/static mount<br/>(StaticFiles)"]
+    Mount --> Local["Same machine:<br/>/dashboard/queue/id shows a &lt;video&gt; tag"]
+    Mount --> Ngrok["ngrok http 8000<br/>PUBLIC_MEDIA_BASE_URL=https://xxx.ngrok-free.app"]
+    Ngrok --> Publisher["_public_media_url(item)<br/>= base + /static/ + filename"]
+    Publisher --> Social[Buffer / Ayrshare fetch the URL]
+```
+
+`_media_url_for_display()` (`app/api/dashboard.py`) only embeds a `<video>`
+tag when `media_path` resolves to something actually servable — either
+already a `/static/...` path or a local file under `assets/generated/`. A
+`media_path` from a different machine is shown as inert text instead of a
+broken player.
+

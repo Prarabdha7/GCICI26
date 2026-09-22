@@ -30,7 +30,14 @@
 {% if item.media_path %}
 <article>
     <h3>Media</h3>
-    <p><code>{{ item.media_path }}</code></p>
+    {% if media_url %}
+    <video controls style="max-width: 100%;">
+        <source src="{{ media_url }}" type="video/mp4">
+        Your browser doesn't support embedded video — open it directly: {{ media_url }}
+    </video>
+    {% else %}
+    <p><code>{{ item.media_path }}</code> (not servable from this machine)</p>
+    {% endif %}
 </article>
 {% endif %}
 

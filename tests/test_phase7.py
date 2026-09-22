@@ -134,9 +134,11 @@ def test_public_media_url_none_without_base_url(monkeypatch) -> None:
 
 
 def test_public_media_url_builds_from_base_and_filename(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "public_media_base_url", "https://cdn.test/media")
+    """Files are served from the /static mount (app/main.py) — the URL must
+    include that path segment, e.g. an ngrok base + /static/<filename>."""
+    monkeypatch.setattr(settings, "public_media_base_url", "https://cdn.test")
     item = ContentQueue(brand="Jade", platform="linkedin", language="en", draft_content="x", media_path="/tmp/reel.mp4")
-    assert publisher_module._public_media_url(item) == "https://cdn.test/media/reel.mp4"
+    assert publisher_module._public_media_url(item) == "https://cdn.test/static/reel.mp4"
 
 
 # --------------------------------------------------------------------------- #

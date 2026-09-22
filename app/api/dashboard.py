@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
@@ -29,6 +30,23 @@ def _action_response(request: Request) -> Response:
         response.headers["HX-Redirect"] = "/dashboard"
         return response
     return HTMLResponse("")
+
+
+def _media_url_for_display(item: ContentQueue) -> str | None:
+    """Resolves media_path to a URL the browser can actually load, if possible.
+    Anything already under /static/, or a local file inside assets/generated/
+    (served by that same mount), is embeddable; anything else — a stray local
+    path from a different machine — can only be shown as text."""
+    if not item.media_path:
+        return None
+    if item.media_path.startswith(("/static/", "http://", "https://")):
+        return item.media_path
+    try:
+        if Path(item.media_path).resolve().is_relative_to(settings.generated_dir.resolve()):
+            return f"/static/{Path(item.media_path).name}"
+    except (OSError, ValueError):
+        pass
+    return None
 
 
 def _get_item_or_404(content_id: int, db: Session) -> ContentQueue:
@@ -102,7 +120,11 @@ def queue_detail(content_id: int, request: Request, db: Session = Depends(get_db
     return templates.TemplateResponse(
         request,
         "queue_detail.html",
-        {"item": item, "error_tags": [tag.value for tag in ErrorTag]},
+        {
+            "item": item,
+            "error_tags": [tag.value for tag in ErrorTag],
+            "media_url": _media_url_for_display(item),
+        },
     )
 
 
