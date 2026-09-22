@@ -64,6 +64,27 @@ async function renderQueue() {
   view.querySelectorAll("tr.clickable").forEach(tr => tr.onclick = () => renderDetail(+tr.dataset.id));
 }
 
+/* ---------------- carousel widget ---------------- */
+function carouselWidget(slides) {
+  if (!slides || !slides.length) return `<p class="mut">No carousel slides.</p>`;
+  const id = "car-" + Math.random().toString(36).slice(2, 8);
+  return `<div class="carousel" id="${id}">
+    <div class="carousel-track">${slides.map((s, i) => `
+      <div class="carousel-card"><span class="carousel-num">Slide ${i + 1} / ${slides.length}</span><p class="prewrap">${esc(s)}</p></div>`).join("")}</div>
+    <div class="carousel-nav"><button type="button" class="secondary carousel-prev">‹ Prev</button><button type="button" class="secondary carousel-next">Next ›</button></div>
+  </div>`;
+}
+
+function wireCarousels(root) {
+  root.querySelectorAll(".carousel").forEach((el) => {
+    const track = el.querySelector(".carousel-track");
+    const card = el.querySelector(".carousel-card");
+    const step = () => (card ? card.getBoundingClientRect().width + 10 : 240);
+    el.querySelector(".carousel-prev").onclick = () => track.scrollBy({ left: -step(), behavior: "smooth" });
+    el.querySelector(".carousel-next").onclick = () => track.scrollBy({ left: step(), behavior: "smooth" });
+  });
+}
+
 /* ---------------- detail ---------------- */
 async function renderDetail(id) {
   let item, extra = { media: {}, captions: [], diff: [], formats: {} }, events = [], feedback = [];
@@ -95,8 +116,11 @@ async function renderDetail(id) {
         : item.media_path ? `<div class="card"><h3>Media</h3><p class="mut">${esc(item.media_path)} (not servable from this host)</p></div>` : ""}
       ${pack.thread ? `<div class="card"><h3>Multi-format pack</h3>
         <h4>Thread</h4><ol class="compact">${pack.thread.map(t => `<li>${esc(t)}</li>`).join("")}</ol>
-        <h4>Carousel</h4><ol class="compact">${pack.carousel.map(s => `<li>${esc(s)}</li>`).join("")}</ol>
-        <p><b>A:</b> ${esc(pack.variant_a)}</p><p><b>B:</b> ${esc(pack.variant_b)}</p>
+        <h4>Carousel</h4>${carouselWidget(pack.carousel)}
+        <h4>A/B variants</h4><div class="grid two">
+          <div class="variant-card"><span class="mut">Variant A</span><p class="prewrap">${esc(pack.variant_a)}</p></div>
+          <div class="variant-card"><span class="mut">Variant B</span><p class="prewrap">${esc(pack.variant_b)}</p></div>
+        </div>
         ${pack.video_script ? `<h4>Video script</h4><p>${esc(pack.video_script)}</p>` : ""}
         ${(pack.focus_group || []).length ? `<h4>Focus group (demo personas)</h4><ul class="compact">${pack.focus_group.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}</div>` : ""}
       <div class="card"><h3>Review actions</h3>
@@ -114,6 +138,7 @@ async function renderDetail(id) {
       <div class="card"><h3>Feedback history</h3>
         <ul class="compact">${feedback.map(f => `<li>[${esc(f.error_tag)}] ${esc(f.human_note)}</li>`).join("") || "<li class='mut'>None.</li>"}</ul></div>
     </div></div>`;
+  wireCarousels(view);
   $("#back").onclick = renderQueue;
   const done = (d) => { showBanner(d.message + (d.is_demo ? " [DEMO row]" : ""), d.is_demo ? "demo" : ""); renderDetail(id); };
   const fail = (e) => showBanner("Action failed honestly: " + e.message, "err");
