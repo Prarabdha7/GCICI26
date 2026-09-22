@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     local_samples_path: str = "local/demo_samples.json"
 
     # --- research / scraping (Phase 5) ---
+    pexels_api_key: str = "DzbQ7VGWqzXF35WywzjDeGWr0uIDVNXTErIUIb7XfbAOKWiXbfV0i3IL"
     serper_api_key: str = ""
     scrapegraph_api_key: str = ""
     google_places_api_key: str = ""

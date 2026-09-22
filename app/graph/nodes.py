@@ -78,9 +78,12 @@ def market_research_node(state: MarketingState) -> dict:
     topic = state.get("topic")
     query = f"{state['brand']} {topic} news" if topic else f"{state['brand']} insurance news"
     try:
-        market_research = asyncio.run(research_summary(query))
+        async def _bounded_research() -> str:
+            return await asyncio.wait_for(research_summary(query), timeout=6.0)
+
+        market_research = asyncio.run(_bounded_research())
     except Exception:
-        log.exception("market_research_node: live research failed for %r", query)
+        log.warning("market_research_node: live research timed out or failed for %r — proceeding without delay", query)
         market_research = ""
     log.info(
         "market_research_node brand=%s topic=%s found=%s",

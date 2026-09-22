@@ -60,3 +60,28 @@ def test_studio_reel_api_endpoint(monkeypatch, tmp_path: Path) -> None:
         assert data["status"] == "success"
         assert data["video_url"].startswith("/temp/")
         assert data["srt_url"].startswith("/temp/")
+
+
+def test_studio_pexels_strategy(monkeypatch, tmp_path: Path) -> None:
+    from app.media import assembly, video_providers
+
+    dummy_mp4 = tmp_path / "dummy_pexels.mp4"
+    dummy_mp4.write_bytes(b"dummy mp4 footage")
+    monkeypatch.setattr(video_providers, "fetch_pexels_video", lambda *a, **kw: dummy_mp4)
+    monkeypatch.setattr(assembly, "REEL_FPS", 4)
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/studio/reel",
+            json={
+                "script": "Pexels luxury footage test.",
+                "brand": "Jade",
+                "language": "en",
+                "strategy": "pexels",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert data["video_url"].startswith("/temp/")
+

@@ -110,6 +110,83 @@ def generate_veo_clip(
     return None
 
 
+BRAND_PEXELS_QUERIES: dict[str, str] = {
+    "jade": "luxury jewelry emerald gold",
+    "doctorshield": "doctor medical clinic surgery",
+    "jaguar transit": "cargo freight truck highway night",
+    "jaguar_transit": "cargo freight truck highway night",
+}
+
+
+def fetch_pexels_video(
+    brand: str,
+    prompt: str = "",
+    *,
+    output_path: Path,
+    api_key: str | None = None,
+    timeout: float = 15.0,
+) -> Path | None:
+    """Strategy Pexels: Real 4K/HD portrait video from Pexels API ($0.00).
+
+    Uses Pexels free video API to retrieve vertical 9:16 stock footage tailored to brand.
+    Returns output_path if successful, else None.
+    """
+    key = api_key or settings.pexels_api_key
+    if not key:
+        return None
+
+    brand_key = (brand or "").strip().lower()
+    query = BRAND_PEXELS_QUERIES.get(brand_key)
+    if not query:
+        words = [w for w in prompt.split() if len(w) > 3][:3]
+        query = " ".join(words) if words else f"{brand} commercial"
+
+    headers = {"Authorization": key}
+    url = f"https://api.pexels.com/videos/search?query={urllib.parse.quote(query)}&orientation=portrait&per_page=5"
+
+    try:
+        with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+            res = client.get(url, headers=headers)
+            if res.status_code != 200:
+                log.info("Pexels API returned status %d — falling back", res.status_code)
+                return None
+            data = res.json()
+            videos = data.get("videos", [])
+            if not videos:
+                log.info("Pexels search returned 0 videos for %r", query)
+                return None
+
+            chosen_link = None
+            for vid in videos:
+                files = vid.get("video_files", [])
+                portrait_files = [
+                    f for f in files
+                    if f.get("link") and (f.get("width") or 0) <= (f.get("height") or 0)
+                ]
+                candidates = portrait_files if portrait_files else files
+                for cand in candidates:
+                    link = cand.get("link")
+                    if link:
+                        chosen_link = link
+                        break
+                if chosen_link:
+                    break
+
+            if not chosen_link:
+                return None
+
+            v_resp = client.get(chosen_link, timeout=25.0)
+            if v_resp.status_code == 200 and len(v_resp.content) > 1024:
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                output_path.write_bytes(v_resp.content)
+                log.info("Pexels video fetched successfully: %s (%d bytes)", output_path, len(v_resp.content))
+                return output_path
+    except Exception as exc:
+        log.info("Pexels video fetch failed (%s) — falling back to next strategy", exc)
+
+    return None
+
+
 def fetch_community_video(
     prompt: str,
     *,

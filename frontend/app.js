@@ -148,22 +148,38 @@ async function renderGenerate() {
       <p class="mut">Live keyless research (DuckDuckGo + Crawl4AI); mock fallback only when search returns nothing.</p></div>
     </div>`;
   $("#g-go").onclick = async () => {
+    const btn = $("#g-go");
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "⏳ Generating campaign...";
+    showBanner("Running LangGraph pipeline with real Gemini models & compliance gate...", "");
     try {
       const d = await api("/api/generate", { method: "POST", body: JSON.stringify({ brand: $("#g-brand").value, platform: $("#g-platform").value, language: $("#g-lang").value, topic: $("#g-topic").value, content_type: $("#g-type").value }) });
       showBanner(d.message, d.is_demo ? "demo" : ""); renderDetail(d.content_id);
     } catch (e) { showBanner("Generation failed honestly: " + e.message, "err"); }
+    finally { btn.disabled = false; btn.textContent = orig; }
   };
   $("#n-go").onclick = async () => {
+    const btn = $("#n-go");
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "⏳ Researching & generating...";
+    showBanner("Conducting live competitor intel scan & drafting campaign...", "");
     try {
       const d = await api("/api/newsjack", { method: "POST", body: JSON.stringify({ brand: $("#g-brand").value, niche: $("#n-niche").value, country: $("#n-country").value }) });
       showBanner(d.message, d.is_demo ? "demo" : ""); renderDetail(d.content_id);
     } catch (e) { showBanner("Newsjack failed honestly: " + e.message, "err"); }
+    finally { btn.disabled = false; btn.textContent = orig; }
   };
   view.querySelectorAll("[data-digest]").forEach(b => b.onclick = async () => {
+    const orig = b.textContent;
+    b.disabled = true;
+    b.textContent = "⏳ Generating...";
     try {
       const d = await api("/api/generate", { method: "POST", body: JSON.stringify({ brand: b.dataset.brand, platform: "linkedin", language: "en", topic: b.dataset.digest, content_type: "post" }) });
       showBanner(d.message, d.is_demo ? "demo" : ""); renderDetail(d.content_id);
     } catch (e) { showBanner("Generation failed honestly: " + e.message, "err"); }
+    finally { b.disabled = false; b.textContent = orig; }
   });
 }
 
@@ -305,7 +321,8 @@ async function renderStudio() {
           </label>
           <label>Strategy
             <select id="s-vstrat">
-              <option value="auto">Auto Cascade (Veo → Pollinations → B-roll → Ken Burns)</option>
+              <option value="auto">Auto Cascade (Pexels 4K → Veo → Pollinations → B-roll → Ken Burns)</option>
+              <option value="pexels">Pexels 4K Portrait Video ($0.00)</option>
               <option value="broll">Curated 4K B-Roll Loop (assets/video/)</option>
               <option value="veo">Google Veo (veo-3.1-fast-generate-preview)</option>
               <option value="community">Community Diffusion (Pollinations.ai)</option>

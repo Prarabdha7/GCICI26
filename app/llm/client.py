@@ -156,25 +156,62 @@ def _gemini(*, system: str, user: str, temperature: float, schema: dict[str, Any
     except ImportError as exc:  # pragma: no cover
         raise LLMError("google-genai is not installed. pip install -r requirements.txt") from exc
 
+    import time
+
     client = genai.Client(api_key=settings.gemini_api_key)
     config: dict[str, Any] = {"system_instruction": system, "temperature": temperature}
     if schema is not None:
         config["response_mime_type"] = "application/json"
         config["response_schema"] = schema
 
-    try:
-        response = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=user,
-            config=types.GenerateContentConfig(**config),
-        )
-    except Exception as exc:  # pragma: no cover - network path
-        raise LLMError(f"Gemini call failed: {exc}") from exc
+    target_models = [
+        settings.gemini_model,
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-flash-latest",
+    ]
+    target_models = list(dict.fromkeys(m for m in target_models if m))
 
-    text = (response.text or "").strip()
-    if not text:
-        raise LLMError("Gemini returned an empty response.")
-    return text
+    last_exc = None
+    for attempt in range(2):
+        for m in target_models:
+            try:
+                response = client.models.generate_content(
+                    model=m,
+                    contents=user,
+                    config=types.GenerateContentConfig(**config),
+                )
+                text = (response.text or "").strip()
+                if text:
+                    return text
+            except Exception as exc:  # pragma: no cover - network path
+                last_exc = exc
+                err_str = str(exc).lower()
+                if (
+                    "429" in err_str
+                    or "resource_exhausted" in err_str
+                    or "quota" in err_str
+                    or "unavailable" in err_str
+                    or "503" in err_str
+                    or "not_found" in err_str
+                    or "404" in err_str
+                ):
+                    log.warning(
+                        "Gemini model %s encountered rate/quota/availability error (%s) — rotating to next model in pool",
+                        m,
+                        exc,
+                    )
+                    continue
+                # For non-transient errors (e.g. invalid key or bad parameter), raise immediately
+                raise LLMError(f"Gemini call failed: {exc}") from exc
+
+        if attempt == 0:
+            log.warning("All pool models throttled in round 1; brief pause before final attempt...")
+            time.sleep(1.5)
+
+    raise LLMError(f"Gemini call failed across all pool models: {last_exc}") from last_exc
 
 
 def _openai(*, system: str, user: str, temperature: float, schema: dict[str, Any] | None) -> str:

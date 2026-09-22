@@ -425,6 +425,7 @@ def assemble_video(
 
     if background_path is None:
         from app.media.video_providers import (
+            fetch_pexels_video,
             fetch_community_video,
             generate_veo_clip,
             get_cinematic_prompt,
@@ -432,8 +433,11 @@ def assemble_video(
         )
 
         prompt = get_cinematic_prompt(brand, script)
-        veo_target = output_dir / f"veo_{run_id}.mp4"
-        background_path = generate_veo_clip(prompt, output_path=veo_target, brand=brand)
+        pexels_target = output_dir / f"pexels_{run_id}.mp4"
+        background_path = fetch_pexels_video(brand, prompt, output_path=pexels_target)
+        if background_path is None:
+            veo_target = output_dir / f"veo_{run_id}.mp4"
+            background_path = generate_veo_clip(prompt, output_path=veo_target, brand=brand)
         if background_path is None:
             comm_target = output_dir / f"comm_{run_id}.mp4"
             background_path = fetch_community_video(prompt, output_path=comm_target)

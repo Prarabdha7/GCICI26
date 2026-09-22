@@ -46,17 +46,24 @@ async def research_summary(query: str, *, max_results: int = 2, attempts: int = 
     if not urls:
         return ""
 
-    from crawl4ai import AsyncWebCrawler
+    try:
+        from crawl4ai import AsyncWebCrawler
+    except Exception as exc:
+        log.warning("Crawl4AI unavailable (%s) — skipping web crawl", exc)
+        return ""
 
     sections: list[str] = []
-    async with AsyncWebCrawler() as crawler:
-        for url in urls:
-            try:
-                result = await crawler.arun(url=url)
-                markdown = str(result.markdown).strip()
-            except Exception:
-                log.exception("Crawl4AI failed to scrape %s", url)
-                continue
-            if markdown:
-                sections.append(f"### {url}\n{markdown[:MAX_CHARS_PER_PAGE]}")
+    try:
+        async with AsyncWebCrawler() as crawler:
+            for url in urls:
+                try:
+                    result = await asyncio.wait_for(crawler.arun(url=url), timeout=4.0)
+                    markdown = str(result.markdown).strip()
+                except Exception:
+                    log.warning("Crawl4AI failed or timed out for %s", url)
+                    continue
+                if markdown:
+                    sections.append(f"### {url}\n{markdown[:MAX_CHARS_PER_PAGE]}")
+    except Exception as exc:
+        log.warning("Crawl4AI session error: %s", exc)
     return "\n\n".join(sections)

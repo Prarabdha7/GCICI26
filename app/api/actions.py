@@ -291,7 +291,11 @@ def studio_generate_reel(req: StudioReelRequest) -> dict:
 
     run_id = uuid.uuid4().hex[:8]
     bg_path = None
-    if req.strategy == "broll":
+    if req.strategy == "pexels":
+        from app.media.video_providers import fetch_pexels_video, get_cinematic_prompt
+        p = get_cinematic_prompt(req.brand, req.script)
+        bg_path = fetch_pexels_video(req.brand, p, output_path=TEMP_DIR / f"pexels_{run_id}.mp4")
+    elif req.strategy == "broll":
         from app.media.video_providers import get_curated_broll
         bg_path = get_curated_broll(req.brand)
     elif req.strategy == "community":
@@ -360,10 +364,11 @@ def studio_models() -> dict:
             "procedural-luxury",
         ],
         "available_video_strategies": [
-            {"id": "auto", "name": "Auto Cascade (Veo → Pollinations → B-roll → Ken Burns)"},
+            {"id": "auto", "name": "Auto Cascade (Pexels 4K → Veo → Pollinations → B-roll → Ken Burns)"},
+            {"id": "pexels", "name": "Pexels 4K Portrait Video ($0.00)"},
             {"id": "veo", "name": "Google Veo (veo-3.1-fast-generate-preview)"},
             {"id": "community", "name": "Community Open Diffusion (Pollinations.ai)"},
             {"id": "broll", "name": "Curated 4K B-Roll Loop (assets/video/)"},
-            {"id": "kenburns", "name": "2.5D Ken Burns Cinematic Camera Motion"},
+            {"id": "kenburns", "name": "2.5D Ken Burns Cinematic Motion Engine"},
         ],
     }
