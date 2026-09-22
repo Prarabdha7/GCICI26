@@ -1,16 +1,38 @@
 {% extends "base.html" %}
 {% block title %}Metrics — JA Assure Review{% endblock %}
 {% block content %}
-<h2>Metrics</h2>
+<hgroup>
+    <h2>Metrics</h2>
+    <p>Evidence the closed-loop memory engine is actually learning.</p>
+</hgroup>
 <div class="grid">
-    <article><h3>Rejection rate</h3><p class="metric-value">{{ (rejection_rate * 100)|round(1) }}%</p></article>
-    <article><h3>Avg retries / asset</h3><p class="metric-value">{{ avg_retries }}</p></article>
-    <article><h3>Avg edit distance</h3><p class="metric-value">{{ avg_edit_distance }}</p></article>
-    <article><h3>Feedback entries</h3><p class="metric-value">{{ feedback_entries }}</p></article>
-    <article><h3>Leads</h3><p class="metric-value">{{ leads }}</p></article>
+    <article>
+        <p class="metric-caption">Rejection rate</p>
+        <p class="metric-value">{{ (rejection_rate * 100)|round(1) }}%</p>
+    </article>
+    <article>
+        <p class="metric-caption">Avg retries / asset</p>
+        <p class="metric-value">{{ avg_retries }}</p>
+    </article>
+    <article>
+        <p class="metric-caption">Avg edit distance</p>
+        <p class="metric-value">{{ avg_edit_distance }}</p>
+    </article>
+    <article>
+        <p class="metric-caption">Feedback entries</p>
+        <p class="metric-value">{{ feedback_entries }}</p>
+    </article>
+    <article>
+        <p class="metric-caption">Leads</p>
+        <p class="metric-value">{{ leads }}</p>
+    </article>
 </div>
-<h3>Learning curve (last 14 days)</h3>
-<canvas id="trend" width="640" height="260"></canvas>
+
+<article>
+    <h3>Learning curve (last 14 days)</h3>
+    <canvas id="trend" width="640" height="260"></canvas>
+    <p><em>Proof of learning: rejection rate should fall and avg edit distance should shrink as feedback accumulates.</em></p>
+</article>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 fetch("/api/metrics/trend?days=14").then(r => r.json()).then(rows => {
@@ -26,13 +48,26 @@ fetch("/api/metrics/trend?days=14").then(r => r.json()).then(rows => {
   });
 }).catch(() => {});
 </script>
-<h3>By status</h3>
-<ul>
-    {% for status, count in by_status.items() %}<li>{{ status }}: {{ count }}</li>{% else %}<li><em>No data yet.</em></li>{% endfor %}
-</ul>
-<h3>Lessons learned (closed-loop)</h3>
-<ul>
-    {% for f in lessons %}<li><strong>{{ f.brand }}/{{ f.platform }} [{{ f.error_tag }}]</strong>: {{ f.human_note }}</li>{% else %}<li><em>No feedback yet — reject or edit an asset to teach the system.</em></li>{% endfor %}
-</ul>
-<p><em>Proof of learning: rejection rate should fall and avg edit distance should shrink as feedback accumulates.</em></p>
+
+<article>
+    <h3>By status</h3>
+    <ul>
+        {% for status, count in by_status.items() %}
+        <li><span class="badge badge-{{ status }}">{{ status }}</span> &nbsp;{{ count }}</li>
+        {% else %}
+        <li><em>No data yet.</em></li>
+        {% endfor %}
+    </ul>
+</article>
+
+<article>
+    <h3>Lessons learned (closed-loop)</h3>
+    <ul>
+        {% for f in lessons %}
+        <li><strong>{{ f.brand }}/{{ f.platform }} [{{ f.error_tag }}]</strong>: {{ f.human_note }}</li>
+        {% else %}
+        <li><em>No feedback yet — reject or edit an asset to teach the system.</em></li>
+        {% endfor %}
+    </ul>
+</article>
 {% endblock %}

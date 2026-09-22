@@ -109,20 +109,36 @@ def metrics_view(request: Request, db: Session = Depends(get_db)) -> HTMLRespons
 
 
 def _media_urls(media_path: str | None) -> dict:
-    """Map stored media_path to web URLs. New rows store `temp/reel_xxx.mp4`;
-    legacy absolute paths fall back to filename under /temp/."""
+    """Map stored media_path to web URLs. Reel-pipeline rows store
+    `temp/reel_xxx.mp4` (served at /temp, with sibling .srt/.json captions);
+    rows resolved to assets/generated/ (the /static mount, e.g.
+    scripts/seed_demo.py's sample media — checked against the real filesystem,
+    not string-matching) pass through with no caption siblings, since that
+    pipeline doesn't generate any. Anything else unrecognized returns {},
+    so the caller falls back to showing the raw path as text."""
     if not media_path:
         return {}
     import pathlib
 
     p = media_path.replace("\\", "/")
     name = pathlib.PurePath(p).name
+
+    if p.startswith("/static/"):
+        return {"video_url": p, "file": name}
+    try:
+        if pathlib.Path(media_path).resolve().is_relative_to(settings.generated_dir.resolve()):
+            return {"video_url": f"/static/{name}", "file": name}
+    except (OSError, ValueError):
+        pass
+
     if p.startswith("temp/"):
         base = p
     elif "/temp/" in p:
         base = "temp/" + p.split("/temp/", 1)[1]
-    else:
+    elif not p.startswith("/"):
         base = f"temp/{name}"
+    else:
+        return {}
     stem = base[:-4] if base.endswith(".mp4") else base
     return {
         "video_url": f"/{base}",

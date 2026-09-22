@@ -9,6 +9,8 @@ Serves the REST API and (from Phase 6) the human review dashboard.
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -18,6 +20,18 @@ from app.api.dashboard import router as dashboard_router
 from app.api.routes import router as api_router
 from app.config import settings
 from app.db.database import init_db
+
+# AgentOps telemetry is opt-in and never runs under pytest: it makes a real
+# outbound network call, which would violate this project's zero-API-quota
+# testing rule and add latency to every app startup.
+agentops_key = os.getenv("AGENTOPS_API_KEY")
+is_testing = "pytest" in sys.modules or os.getenv("TESTING") == "true"
+if agentops_key and agentops_key not in ("", "your_key_here") and not is_testing:
+    try:
+        import agentops
+        agentops.init(api_key=agentops_key, default_tags=["hackathon-demo"])
+    except Exception:
+        pass
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
@@ -34,21 +48,7 @@ async def lifespan(app: FastAPI):
     (settings.base_dir / "temp").mkdir(parents=True, exist_ok=True)
     if not settings.compliance_rubric_path.exists():
         log.warning("compliance_rubric.md is missing — the compliance gate has nothing to ground on.")
-    scheduler = None
-    try:
-        from worker.scheduler import build_scheduler
-
-        scheduler = build_scheduler()
-        scheduler.start()
-        log.info("Publisher worker started (mock-safe, interval=%ss)", settings.publish_poll_interval)
-    except Exception as exc:
-        log.warning("Worker failed to start (%s) — API still serves", exc)
     yield
-    if scheduler is not None:
-        try:
-            scheduler.shutdown(wait=False)
-        except Exception:
-            pass
     log.info("Shutting down.")
 
 
@@ -72,6 +72,10 @@ except Exception:
 
 app.include_router(api_router)
 app.include_router(dashboard_router)
+
+# StaticFiles requires the directory to exist at mount time, before lifespan runs.
+settings.generated_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(settings.generated_dir)), name="static")
 
 
 @app.get("/health", tags=["meta"])
