@@ -1,0 +1,251 @@
+"""Phase 6 tests: the review dashboard and closed-loop memory storage.
+
+    pytest tests/test_phase6.py -v
+"""
+
+from __future__ import annotations
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
+
+from app.db.database import session_scope
+from app.db.models import ContentQueue, ContentStatus, FeedbackMemory
+from app.main import app
+from app.memory.store import create_feedback_entry
+
+
+@pytest.fixture
+def client():
+    with TestClient(app) as c:
+        yield c
+
+
+def _seed_queue_row(db: Session, **overrides) -> ContentQueue:
+    fields = {
+        "brand": "Jade", "platform": "linkedin", "language": "en",
+        "draft_content": "draft copy", "status": ContentStatus.PENDING.value,
+    }
+    fields.update(overrides)
+    row = ContentQueue(**fields)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+# --------------------------------------------------------------------------- #
+# app/memory/store.py
+# --------------------------------------------------------------------------- #
+
+
+def test_create_feedback_entry_writes_a_row() -> None:
+    with session_scope() as db:
+        entry = create_feedback_entry(
+            db, brand="Jade", platform="linkedin", error_tag="too_salesy",
+            human_note="Reads like a pitch.", content_id=None,
+        )
+        assert entry.id is not None
+
+    with session_scope() as db:
+        row = db.get(FeedbackMemory, entry.id)
+        assert row.brand == "Jade"
+        assert row.error_tag == "too_salesy"
+        assert row.human_note == "Reads like a pitch."
+
+
+def test_create_feedback_entry_links_content_id() -> None:
+    with session_scope() as db:
+        queue_row = _seed_queue_row(db)
+        entry = create_feedback_entry(
+            db, brand=queue_row.brand, platform=queue_row.platform,
+            error_tag="wrong_cta", human_note="CTA mismatched.", content_id=queue_row.id,
+        )
+        assert entry.content_id == queue_row.id
+
+
+# --------------------------------------------------------------------------- #
+# dashboard routes — GET
+# --------------------------------------------------------------------------- #
+
+
+def test_dashboard_home_lists_pending_items(client) -> None:
+    with session_scope() as db:
+        _seed_queue_row(db, draft_content="unique-pending-marker-1")
+
+    response = client.get("/dashboard")
+
+    assert response.status_code == 200
+    assert "unique-pending-marker-1" in response.text
+
+
+def test_dashboard_home_excludes_non_pending_items(client) -> None:
+    with session_scope() as db:
+        _seed_queue_row(db, draft_content="unique-approved-marker", status=ContentStatus.APPROVED.value)
+
+    response = client.get("/dashboard")
+
+    assert "unique-approved-marker" not in response.text
+
+
+def test_manual_intervention_view_lists_only_breaker_trips(client) -> None:
+    with session_scope() as db:
+        _seed_queue_row(db, draft_content="unique-manual-marker", status=ContentStatus.MANUAL_INTERVENTION.value, retry_count=4)
+        _seed_queue_row(db, draft_content="unique-pending-marker-2", status=ContentStatus.PENDING.value)
+
+    response = client.get("/dashboard/manual-intervention")
+
+    assert response.status_code == 200
+    assert "unique-manual-marker" in response.text
+    assert "unique-pending-marker-2" not in response.text
+
+
+def test_metrics_view_renders(client) -> None:
+    response = client.get("/dashboard/metrics")
+    assert response.status_code == 200
+    assert "Rejection rate" in response.text
+
+
+def test_queue_detail_renders_existing_item(client) -> None:
+    with session_scope() as db:
+        row = _seed_queue_row(db, draft_content="unique-detail-marker")
+        content_id = row.id
+
+    response = client.get(f"/dashboard/queue/{content_id}")
+
+    assert response.status_code == 200
+    assert "unique-detail-marker" in response.text
+
+
+def test_queue_detail_404_for_missing_item(client) -> None:
+    response = client.get("/dashboard/queue/999999999")
+    assert response.status_code == 404
+
+
+# --------------------------------------------------------------------------- #
+# dashboard routes — actions
+# --------------------------------------------------------------------------- #
+
+
+def test_approve_updates_status(client) -> None:
+    with session_scope() as db:
+        row = _seed_queue_row(db)
+        content_id = row.id
+
+    response = client.post(f"/dashboard/queue/{content_id}/approve")
+
+    assert response.status_code == 200
+    with session_scope() as db:
+        assert db.get(ContentQueue, content_id).status == ContentStatus.APPROVED.value
+
+
+def test_approve_from_list_context_returns_empty_body_for_htmx_swap(client) -> None:
+    with session_scope() as db:
+        row = _seed_queue_row(db)
+        content_id = row.id
+
+    response = client.post(f"/dashboard/queue/{content_id}/approve")
+
+    assert response.text == ""
+    assert "hx-redirect" not in {k.lower() for k in response.headers}
+
+
+def test_approve_from_detail_context_sends_hx_redirect(client) -> None:
+    with session_scope() as db:
+        row = _seed_queue_row(db)
+        content_id = row.id
+
+    response = client.post(
+        f"/dashboard/queue/{content_id}/approve", headers={"HX-Target": "detail-actions"}
+    )
+
+    assert response.headers.get("HX-Redirect") == "/dashboard"
+
+
+def test_reject_updates_status_and_writes_feedback(client) -> None:
+    with session_scope() as db:
+        row = _seed_queue_row(db, brand="DoctorShield", platform="instagram")
+        content_id = row.id
+
+    response = client.post(
+        f"/dashboard/queue/{content_id}/reject",
+        data={"error_tag": "off_brand_tone", "human_note": "Too casual for clinicians."},
+    )
+
+    assert response.status_code == 200
+    with session_scope() as db:
+        item = db.get(ContentQueue, content_id)
+        assert item.status == ContentStatus.REJECTED.value
+        assert item.feedback_reason == "Too casual for clinicians."
+
+        feedback = db.query(FeedbackMemory).filter_by(content_id=content_id).one()
+        assert feedback.brand == "DoctorShield"
+        assert feedback.platform == "instagram"
+        assert feedback.error_tag == "off_brand_tone"
+        assert feedback.human_note == "Too casual for clinicians."
+
+
+def test_reject_requires_error_tag_and_human_note(client) -> None:
+    with session_scope() as db:
+        row = _seed_queue_row(db)
+        content_id = row.id
+
+    response = client.post(f"/dashboard/queue/{content_id}/reject", data={})
+
+    assert response.status_code == 422
+
+
+def test_edit_saves_final_content_approves_and_writes_feedback(client) -> None:
+    with session_scope() as db:
+        row = _seed_queue_row(db, brand="Jaguar Transit", platform="x", draft_content="original copy")
+        content_id = row.id
+
+    response = client.post(
+        f"/dashboard/queue/{content_id}/edit",
+        data={
+            "final_content": "corrected copy",
+            "error_tag": "wrong_cta",
+            "human_note": "Swapped the CTA for the SG market.",
+        },
+    )
+
+    assert response.status_code == 200
+    with session_scope() as db:
+        item = db.get(ContentQueue, content_id)
+        assert item.final_content == "corrected copy"
+        assert item.status == ContentStatus.APPROVED.value
+
+        feedback = db.query(FeedbackMemory).filter_by(content_id=content_id).one()
+        assert feedback.error_tag == "wrong_cta"
+        assert feedback.human_note == "Swapped the CTA for the SG market."
+
+
+def test_reject_on_missing_item_returns_404(client) -> None:
+    response = client.post(
+        "/dashboard/queue/999999999/reject",
+        data={"error_tag": "other", "human_note": "n/a"},
+    )
+    assert response.status_code == 404
+
+
+# --------------------------------------------------------------------------- #
+# The closed loop: a rejection here is retrievable by Phase 3's memory engine
+# --------------------------------------------------------------------------- #
+
+
+def test_rejection_is_retrievable_by_memory_engine(client) -> None:
+    from app.memory.retrieval import get_recent_feedback
+
+    with session_scope() as db:
+        row = _seed_queue_row(db, brand="Jade", platform="tiktok")
+        content_id = row.id
+
+    client.post(
+        f"/dashboard/queue/{content_id}/reject",
+        data={"error_tag": "too_salesy", "human_note": "Reads like an ad, not a story."},
+    )
+
+    with session_scope() as db:
+        entries = get_recent_feedback(db, brand="Jade", platform="tiktok")
+
+    assert any(e.human_note == "Reads like an ad, not a story." for e in entries)
