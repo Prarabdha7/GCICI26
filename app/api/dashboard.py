@@ -155,6 +155,34 @@ def _media_urls(media_path: str | None) -> dict:
     }
 
 
+def _image_urls(image_paths: list[str] | None) -> list[str]:
+    """Same servable-path rule as _media_urls (video), applied per stored image."""
+    if not image_paths:
+        return []
+    import pathlib
+
+    urls = []
+    for media_path in image_paths:
+        p = media_path.replace("\\", "/")
+        name = pathlib.PurePath(p).name
+        if p.startswith("/static/"):
+            urls.append(p)
+            continue
+        try:
+            if pathlib.Path(media_path).resolve().is_relative_to(settings.generated_dir.resolve()):
+                urls.append(f"/static/{name}")
+                continue
+        except (OSError, ValueError):
+            pass
+        if p.startswith("temp/"):
+            urls.append(f"/{p}")
+        elif "/temp/" in p:
+            urls.append("/temp/" + p.split("/temp/", 1)[1])
+        elif not p.startswith("/"):
+            urls.append(f"/temp/{name}")
+    return urls
+
+
 @router.get("/dashboard/queue/{content_id}", response_class=HTMLResponse)
 def queue_detail(content_id: int, request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
     import difflib
@@ -162,6 +190,7 @@ def queue_detail(content_id: int, request: Request, db: Session = Depends(get_db
 
     item = _get_item_or_404(content_id, db)
     media = _media_urls(item.media_path)
+    image_urls = _image_urls(item.image_paths)
     # caption cards for the player (best-effort read of sibling .json)
     captions: list[dict] = []
     try:
@@ -198,7 +227,7 @@ def queue_detail(content_id: int, request: Request, db: Session = Depends(get_db
     return templates.TemplateResponse(
         request,
         "queue_detail.html",
-        {"item": item, "error_tags": [tag.value for tag in ErrorTag], "media": media, "captions": captions, "diff_rows": diff_rows, "pack": pack},
+        {"item": item, "error_tags": [tag.value for tag in ErrorTag], "media": media, "image_urls": image_urls, "captions": captions, "diff_rows": diff_rows, "pack": pack},
     )
 
 

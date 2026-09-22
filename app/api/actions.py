@@ -96,6 +96,22 @@ def _media_urls(media_path: str | None) -> dict[str, Any]:
     return {"video_url": f"/{base}", "srt_url": f"/{stem}.srt", "json_url": f"/{stem}.json", "file": name}
 
 
+def _image_urls(image_paths: list[str] | None) -> list[str]:
+    """Same servable-path rule as _media_urls, applied to each stored image."""
+    urls = []
+    for p in image_paths or []:
+        p = p.replace("\\", "/")
+        name = PurePath(p).name
+        if p.startswith("temp/"):
+            base = p
+        elif "/temp/" in p:
+            base = "temp/" + p.split("/temp/", 1)[1]
+        else:
+            base = f"temp/{name}"
+        urls.append(f"/{base}")
+    return urls
+
+
 def _read_captions(media_path: str | None, limit: int = 24) -> list[dict]:
     try:
         if not media_path:
@@ -240,6 +256,7 @@ def queue_media(content_id: int, db: Session = Depends(get_db)) -> dict:
         "content_id": item.id,
         "is_demo": item.is_demo,
         "media": media,
+        "image_urls": _image_urls(item.image_paths),
         "captions": _read_captions(item.media_path),
         "diff": _diff_rows(item.draft_content or "", target or "") if target and target != item.draft_content else [],
         "audit_transcript": item.audit_transcript,

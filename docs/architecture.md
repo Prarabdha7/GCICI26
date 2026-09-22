@@ -15,9 +15,15 @@ a compliance failure can route back to content generation.
 ```mermaid
 flowchart TD
     START([START]) --> MR[memory_retrieval_node]
-    MR --> C[content_node]
+    MR --> MKT[market_research_node]
+    MKT --> C[content_node]
     C --> L[localization_node]
-    L --> G[compliance_gate_node]
+    L --> ROUTE_L{route_after_localization}
+    ROUTE_L -- "content_type==video<br/>or platform==tiktok" --> V[video_assembly_node]
+    ROUTE_L -- "platform==instagram<br/>&amp; content_type!=carousel" --> IMG[image_generation_node]
+    ROUTE_L -- otherwise --> G[compliance_gate_node]
+    V --> G
+    IMG --> G
     G --> ROUTE{route_after_compliance}
     ROUTE -- "compliant" --> P[persist_node<br/>status = pending]
     ROUTE -- "violations &amp; retry_count &le; 3" --> C
@@ -27,10 +33,25 @@ flowchart TD
 ```
 
 **Why it cycles back to `content_node`, not `memory_retrieval_node`:**
-`memory_retrieval_node` runs once, before the first draft. A retry already
-carries `compliance_errors` from the failed attempt — that's injected directly
-into the rewrite prompt, which is a sharper signal than re-fetching the same
-historical feedback again.
+`memory_retrieval_node` and `market_research_node` each run once, before the
+first draft. A retry already carries `compliance_errors` from the failed
+attempt — that's injected directly into the rewrite prompt, which is a
+sharper signal than re-fetching the same historical feedback again (and
+avoids a second live research call per retry).
+
+**Image vs. video routing:** `video_assembly_node` renders a reel for
+`tiktok`, or any platform when `content_type=="video"` — internally,
+`assemble_video()` (`app/media/assembly.py`) tries Veo first (real
+generative video via the Gemini API, `app/llm/client.py::video_call`) and
+falls back to script → `edge-tts` voiceover → `moviepy` assembly on any
+failure (no key, no quota, timeout). `image_generation_node` renders a
+single on-brand hero image (Gemini's native image-output models,
+`app/media/image_gen.py`) for Instagram posts. Carousels are the one case
+neither handles here: `build_format_pack`'s slide texts don't exist until
+`persist_node` runs, so carousel images are generated there instead, one
+per slide, after the pack is built. All three media paths follow the same
+fail-open contract — a generation failure is logged and skipped, never
+fabricated, and never blocks the text pipeline.
 
 **Circuit breaker:** `route_after_compliance` (`app/graph/routing.py`) is the
 only place retry policy lives. `retry_count` is incremented exclusively by
@@ -149,6 +170,7 @@ erDiagram
         text draft_content
         text final_content
         string media_path
+        json image_paths
         string status
         json compliance_errors
         int retry_count
@@ -249,4 +271,8 @@ tag when `media_path` resolves to something actually servable — either
 already a `/static/...` path or a local file under `assets/generated/`. A
 `media_path` from a different machine is shown as inert text instead of a
 broken player.
+
+Generated images (`image_paths`, JSON list) resolve the same way, via
+`_image_urls()` in both `app/api/dashboard.py` and `app/api/actions.py` —
+one hero shot for a post, one image per slide for a carousel.
 

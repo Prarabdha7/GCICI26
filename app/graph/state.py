@@ -25,6 +25,7 @@ class MarketingState(TypedDict):
     retry_count: int
     feedback_guidance: str
     media_path: str | None
+    image_paths: NotRequired[list[str]]
     status: str
     content_id: int | None
 

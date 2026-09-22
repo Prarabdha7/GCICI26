@@ -89,6 +89,17 @@
 </article>
 {% endif %}
 
+{% if image_urls %}
+<article>
+    <h3>{{ "Carousel images" if pack.carousel else "Image" }}</h3>
+    <div style="display:flex;gap:10px;overflow-x:auto;">
+    {% for url in image_urls %}
+        <img src="{{ url }}" alt="Generated image {{ loop.index }}" style="max-width:220px;border-radius:8px;flex:0 0 auto;">
+    {% endfor %}
+    </div>
+</article>
+{% endif %}
+
 <article>
     <h3>LinkedIn preview</h3>
     <div style="border:1px solid #ccc;padding:12px;border-radius:8px;">

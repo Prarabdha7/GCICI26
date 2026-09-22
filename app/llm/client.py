@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 
 from app.config import settings
@@ -66,6 +67,35 @@ def text_call(
     if name == "openai":
         return _openai(system=system, user=user, temperature=temp, schema=None)
     raise LLMError(f"Unknown LLM_PROVIDER: {name!r}")
+
+
+def image_call(
+    *,
+    prompt: str,
+    provider: str | None = None,
+) -> bytes:
+    """Generates a single image from a text prompt. Returns raw image bytes
+    (PNG). Used by app.media.image_gen for Instagram-visual posts/carousels."""
+    name = _resolve(provider)
+    if name == "gemini":
+        return _gemini_image(prompt=prompt)
+    raise LLMError(f"Image generation not supported for LLM_PROVIDER: {name!r}")
+
+
+def video_call(
+    *,
+    prompt: str,
+    duration_seconds: int = 6,
+    provider: str | None = None,
+) -> bytes:
+    """Generates a short video from a text prompt. Returns raw MP4 bytes.
+    Used by app.media.assembly as the primary (Veo) path; a failure here is
+    expected to fall back to the zero-cost edge-tts + moviepy assembly, not
+    to crash the pipeline."""
+    name = _resolve(provider)
+    if name == "gemini":
+        return _gemini_video(prompt=prompt, duration_seconds=duration_seconds)
+    raise LLMError(f"Video generation not supported for LLM_PROVIDER: {name!r}")
 
 
 def structured_call(
@@ -129,6 +159,91 @@ def _gemini(*, system: str, user: str, temperature: float, schema: dict[str, Any
     if not text:
         raise LLMError("Gemini returned an empty response.")
     return text
+
+
+def _gemini_image(*, prompt: str) -> bytes:
+    """Uses generate_content with an image-output model (gemini-*-image), not
+    the separate Imagen generate_images API: that method is Enterprise-only
+    ("This method is only supported in Gemini Enterprise Agent Platform mode,
+    not in Gemini Developer API mode") on an AI-Studio key, confirmed live
+    against this project's key. generate_content + inline_data is the current
+    Developer-API-compatible path Google's own SDK deprecation notice points
+    to (see the ExperimentalWarning on generate_images)."""
+    if not settings.gemini_api_key:
+        raise LLMError("GEMINI_API_KEY is not set. Copy .env.example to .env and fill it in.")
+    try:
+        from google import genai
+    except ImportError as exc:  # pragma: no cover
+        raise LLMError("google-genai is not installed. pip install -r requirements.txt") from exc
+
+    client = genai.Client(api_key=settings.gemini_api_key)
+    try:
+        response = client.models.generate_content(model=settings.gemini_image_model, contents=prompt)
+    except Exception as exc:  # pragma: no cover - network path
+        raise LLMError(f"Gemini image call failed: {exc}") from exc
+
+    candidates = getattr(response, "candidates", None) or []
+    image_bytes = None
+    for candidate in candidates:
+        for part in getattr(candidate.content, "parts", None) or []:
+            inline = getattr(part, "inline_data", None)
+            if inline is not None and inline.data:
+                image_bytes = inline.data
+                break
+        if image_bytes:
+            break
+    if not image_bytes:
+        raise LLMError("Gemini returned no image data.")
+    return image_bytes
+
+
+def _gemini_video(*, prompt: str, duration_seconds: int) -> bytes:
+    """Veo is a long-running operation: submit, poll client.operations.get()
+    until done, then download the result's bytes via client.files.download().
+    generate_videos(prompt=...) is deprecated in favor of source=; using the
+    non-deprecated shape here."""
+    if not settings.gemini_api_key:
+        raise LLMError("GEMINI_API_KEY is not set. Copy .env.example to .env and fill it in.")
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError as exc:  # pragma: no cover
+        raise LLMError("google-genai is not installed. pip install -r requirements.txt") from exc
+
+    client = genai.Client(api_key=settings.gemini_api_key)
+    try:
+        operation = client.models.generate_videos(
+            model=settings.gemini_video_model,
+            source=types.GenerateVideosSource(prompt=prompt),
+            config=types.GenerateVideosConfig(number_of_videos=1, duration_seconds=duration_seconds),
+        )
+    except Exception as exc:  # pragma: no cover - network path
+        raise LLMError(f"Veo call failed: {exc}") from exc
+
+    deadline = time.monotonic() + settings.veo_timeout_seconds
+    while not operation.done:
+        if time.monotonic() > deadline:
+            raise LLMError(f"Veo generation timed out after {settings.veo_timeout_seconds}s.")
+        time.sleep(settings.veo_poll_interval_seconds)
+        try:
+            operation = client.operations.get(operation)
+        except Exception as exc:  # pragma: no cover - network path
+            raise LLMError(f"Veo polling failed: {exc}") from exc
+
+    if operation.error:
+        raise LLMError(f"Veo generation failed: {operation.error}")
+
+    generated = getattr(operation.result, "generated_videos", None) or []
+    if not generated:
+        raise LLMError("Veo returned no video data.")
+
+    try:
+        video_bytes = client.files.download(file=generated[0].video)
+    except Exception as exc:  # pragma: no cover - network path
+        raise LLMError(f"Veo video download failed: {exc}") from exc
+    if not video_bytes:
+        raise LLMError("Veo returned an empty video.")
+    return video_bytes
 
 
 def _openai(*, system: str, user: str, temperature: float, schema: dict[str, Any] | None) -> str:

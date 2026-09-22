@@ -200,6 +200,17 @@ def render_caption_card(
         return None
 
 
+def _veo_prompt(script: str, brand: str) -> str:
+    from app.agents.brand_knowledge import get_brand
+
+    info = get_brand(brand)
+    return (
+        f"A short vertical marketing reel for {info['name']} ({info['niche']}). "
+        f"Brand voice: {info['voice']}. Voiceover/on-screen action conveys: {script[:300]}. "
+        "No on-screen text overlays, no logos, cinematic, suitable for Instagram/TikTok."
+    )
+
+
 def assemble_video(
     *,
     script: str,
@@ -208,8 +219,12 @@ def assemble_video(
     background_path: Path | None = None,
     output_dir: Path = TEMP_DIR,
 ) -> Path:
-    """Assemble a reel: voiceover over a background clip, trimmed to audio length.
+    """Assemble a reel. Tries Veo (real generative video, `app.llm.client.video_call`)
+    first; any failure (no key, no quota, timeout) falls back to the zero-cost
+    edge-tts + moviepy pipeline below — both are genuine, non-fabricated media,
+    Veo is just the higher-fidelity option when it's actually available.
 
+    The fallback: voiceover over a background clip, trimmed to audio length.
     `background_path` is a real clip for production use; without one, a
     brand-tinted `ColorClip` stands in so the pipeline runs with no committed
     footage (assets/video/ currently holds only a .gitkeep). Also renders a
@@ -217,8 +232,19 @@ def assemble_video(
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     run_id = uuid.uuid4().hex
-    audio_path = output_dir / f"voiceover_{run_id}.mp3"
     video_path = output_dir / f"reel_{run_id}.mp4"
+
+    try:
+        from app.llm.client import video_call
+
+        video_bytes = video_call(prompt=_veo_prompt(script, brand))
+        video_path.write_bytes(video_bytes)
+        log.info("assemble_video: used Veo, wrote %s (%d bytes)", video_path, len(video_bytes))
+        return video_path
+    except Exception as exc:
+        log.warning("assemble_video: Veo unavailable (%s) — falling back to edge-tts + moviepy", exc)
+
+    audio_path = output_dir / f"voiceover_{run_id}.mp3"
 
     try:
         _run_voiceover_sync(script, language, audio_path)
