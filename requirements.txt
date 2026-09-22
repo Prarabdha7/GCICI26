@@ -32,15 +32,21 @@ pillow>=11.0.0  # kinetic caption cards (brand headers + disclaimers)
 # --- Phase 5: research and scraping --------------------------------------
 httpx>=0.27.0
 beautifulsoup4>=4.12.0
-# Pick one at implementation time; both are LLM-driven and selector-resilient.
-# scrapegraphai>=1.20.0
-# crawl4ai>=0.3.0
+# Keyless live research: DuckDuckGo search + Crawl4AI markdown scraping.
+# Replaces the earlier Tavily-based path — no API key, no quota.
+crawl4ai>=0.9.0
+duckduckgo-search>=8.0.0
 
 # --- Phase 6: review dashboard -------------------------------------------
 jinja2>=3.1.4
 
 # --- Phase 7: Project 2 auto-publisher -----------------------------------
 APScheduler>=3.10.4
+
+# --- Phase 8: observability (optional) -----------------------------------
+# Only initialises with a valid AGENTOPS_API_KEY, and never under pytest —
+# see the guard in app/main.py.
+agentops>=0.4.0
 
 # --- dev / test ----------------------------------------------------------
 pytest>=8.3.0

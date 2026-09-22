@@ -55,7 +55,6 @@ class Settings(BaseSettings):
     demo_mode: bool = False
 
     # --- research / scraping (Phase 5) ---
-    tavily_api_key: str = ""
     serper_api_key: str = ""
     scrapegraph_api_key: str = ""
     google_places_api_key: str = ""
@@ -66,6 +65,10 @@ class Settings(BaseSettings):
     ayrshare_api_key: str = ""
     public_media_base_url: str = ""
     publish_poll_interval: int = 60
+    # Embedded worker serves `python run.py`; standalone `python -m
+    # worker.scheduler` (run_demo.sh) sets WORKER_EMBEDDED=false so two
+    # schedulers never poll the approved queue at once.
+    worker_embedded: bool = True
 
     # --- paths ---
     @property

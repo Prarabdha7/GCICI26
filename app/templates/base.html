@@ -7,27 +7,70 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@1.9.12/dist/htmx.min.js"></script>
     <style>
-        .badge { padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.75rem; }
+        :root {
+            --brand-danger: #b42318;
+            --brand-danger-bg: #fef2f2;
+        }
+        body > nav.navbar {
+            border-bottom: 1px solid var(--pico-muted-border-color);
+            padding-block: 0.85rem;
+            margin-bottom: 2rem;
+        }
+        .navbar .brand { display: flex; align-items: baseline; gap: 0.5rem; }
+        .navbar .brand strong { font-size: 1.15rem; }
+        .navbar .brand small { color: var(--pico-muted-color); }
+        .navbar ul li a[aria-current="page"] {
+            font-weight: 700;
+            text-decoration: underline;
+            text-underline-offset: 0.25rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.7rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
         .badge-pending { background: #fef3c7; color: #92400e; }
         .badge-manual_intervention { background: #fee2e2; color: #991b1b; }
         .badge-approved { background: #dcfce7; color: #166534; }
+        .badge-scheduled { background: #dbeafe; color: #1e40af; }
+        .badge-published { background: #e0e7ff; color: #3730a3; }
         .badge-rejected { background: #e5e7eb; color: #374151; }
-        nav ul li a[aria-current="page"] { font-weight: bold; text-decoration: underline; }
-        .metric-value { font-size: 2rem; margin: 0; }
+
+        .btn-danger {
+            --pico-background-color: var(--brand-danger);
+            --pico-border-color: var(--brand-danger);
+            --pico-color: #fff;
+        }
+        .btn-danger:hover, .btn-danger:focus {
+            filter: brightness(0.92);
+        }
+
+        article { margin-bottom: 1.5rem; }
+        .metric-value { font-size: 2.25rem; font-weight: 700; margin: 0.15rem 0 0; color: var(--pico-primary); }
+        .metric-caption { color: var(--pico-muted-color); font-size: 0.85rem; margin: 0; }
+        video { border-radius: var(--pico-border-radius); background: #000; }
     </style>
 </head>
 <body>
+<nav class="navbar container-fluid">
+    <ul>
+        <li class="brand">
+            <strong>🛡️ JA Assure</strong>
+            <small>AI Marketing System</small>
+        </li>
+    </ul>
+    <ul>
+        <li><a href="/dashboard" {% if active_tab == "queue" %}aria-current="page"{% endif %}>Queue</a></li>
+        <li><a href="/dashboard/manual-intervention" {% if active_tab == "manual" %}aria-current="page"{% endif %}>Manual Intervention</a></li>
+        <li><a href="/dashboard/metrics" {% if active_tab == "metrics" %}aria-current="page"{% endif %}>Metrics</a></li>
+    </ul>
+</nav>
 <main class="container">
-    <header>
-        <h1>JA Assure — Human Review</h1>
-        <nav>
-            <ul>
-                <li><a href="/dashboard" {% if active_tab == "queue" %}aria-current="page"{% endif %}>Queue</a></li>
-                <li><a href="/dashboard/manual-intervention" {% if active_tab == "manual" %}aria-current="page"{% endif %}>Manual Intervention</a></li>
-                <li><a href="/dashboard/metrics" {% if active_tab == "metrics" %}aria-current="page"{% endif %}>Metrics</a></li>
-            </ul>
-        </nav>
-    </header>
     {% block content %}{% endblock %}
 </main>
 </body>

@@ -140,7 +140,7 @@ function renderGenerate() {
       <label>Niche<input id="n-niche" value="jewellers block"></label>
       <label>Country<input id="n-country" value="Singapore"></label>
       <button id="n-go">Research + generate</button>
-      <p class="mut">Requires research provider keys in real mode; uses labeled mock data only in DEMO mode.</p></div>
+      <p class="mut">Live keyless research (DuckDuckGo + Crawl4AI); mock fallback only when search returns nothing.</p></div>
     </div>`;
   $("#g-go").onclick = async () => {
     try {

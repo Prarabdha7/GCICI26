@@ -6,6 +6,7 @@ directly (CLAUDE.md section 12).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from app.agents import prompts
@@ -18,6 +19,7 @@ from app.llm.client import COMPLIANCE_SCHEMA, LLMError, structured_call, text_ca
 from app.llm.fallback import fallback_content, fallback_localize, heuristic_compliance_check, self_healing_fix
 from app.media.assembly import assemble_video
 from app.memory.retrieval import format_guidance, get_recent_feedback
+from app.utils.research import research_summary
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +51,25 @@ def memory_retrieval_node(state: MarketingState) -> dict:
     return {"feedback_guidance": format_guidance(entries)}
 
 
+def market_research_node(state: MarketingState) -> dict:
+    """Grounds the upcoming draft in live market/competitor context via the
+    keyless DuckDuckGo + Crawl4AI research utility (app/utils/research.py).
+    DuckDuckGo's free backend is occasionally rate-limited — an empty result
+    just means content_node writes without extra grounding, not a failure."""
+    topic = state.get("topic")
+    query = f"{state['brand']} {topic} news" if topic else f"{state['brand']} insurance news"
+    try:
+        market_research = asyncio.run(research_summary(query))
+    except Exception:
+        log.exception("market_research_node: live research failed for %r", query)
+        market_research = ""
+    log.info(
+        "market_research_node brand=%s topic=%s found=%s",
+        state["brand"], topic, bool(market_research),
+    )
+    return {"market_research": market_research}
+
+
 def content_node(state: MarketingState) -> dict:
     """Generate (or rewrite) the draft. Injects prior compliance violations
     into the rewrite prompt so a retry is never identical to the last draft.
@@ -63,6 +84,7 @@ def content_node(state: MarketingState) -> dict:
         brand=state["brand"],
         platform=state["platform"],
         topic=state.get("topic", ""),
+        market_research=state.get("market_research", ""),
         compliance_errors=state.get("compliance_errors") or None,
     )
     try:

@@ -23,7 +23,9 @@ from app.config import settings
 from app.db.database import init_db
 
 # AgentOps telemetry is opt-in and never runs under pytest: it makes a real
-# outbound network call. Only initialises with a valid AGENTOPS_API_KEY.
+# outbound network call, which would violate this project's zero-API-quota
+# testing rule and add latency to every app startup. Only initialises with a
+# valid AGENTOPS_API_KEY.
 agentops_key = os.getenv("AGENTOPS_API_KEY")
 is_testing = "pytest" in sys.modules or os.getenv("TESTING") == "true"
 if agentops_key and agentops_key not in ("", "your_key_here") and not is_testing:
@@ -49,14 +51,18 @@ async def lifespan(app: FastAPI):
     if not settings.compliance_rubric_path.exists():
         log.warning("compliance_rubric.md is missing — the compliance gate has nothing to ground on.")
     scheduler = None
-    try:
-        from worker.scheduler import build_scheduler
+    # Embedded worker serves `python run.py` single-command mode. Standalone
+    # `python -m worker.scheduler` (run_demo.sh) sets WORKER_EMBEDDED=false so
+    # two schedulers never poll the approved queue at once (no double-publish).
+    if settings.worker_embedded:
+        try:
+            from worker.scheduler import build_scheduler
 
-        scheduler = build_scheduler()
-        scheduler.start()
-        log.info("Publisher worker started (mock-safe, interval=%ss)", settings.publish_poll_interval)
-    except Exception as exc:
-        log.warning("Worker failed to start (%s) — API still serves", exc)
+            scheduler = build_scheduler()
+            scheduler.start()
+            log.info("Publisher worker started (mock-safe, interval=%ss)", settings.publish_poll_interval)
+        except Exception as exc:
+            log.warning("Worker failed to start (%s) — API still serves", exc)
     yield
     if scheduler is not None:
         try:

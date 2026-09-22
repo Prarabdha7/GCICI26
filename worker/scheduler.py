@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import time
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import select
@@ -126,8 +127,6 @@ def build_scheduler() -> BackgroundScheduler:
 
 def main() -> None:
     """Run the worker as a standalone process: `python -m worker.scheduler`."""
-    import time
-
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)-8s %(name)s | %(message)s"
     )

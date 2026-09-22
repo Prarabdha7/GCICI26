@@ -249,3 +249,69 @@ def test_rejection_is_retrievable_by_memory_engine(client) -> None:
         entries = get_recent_feedback(db, brand="Jade", platform="tiktok")
 
     assert any(e.human_note == "Reads like an ad, not a story." for e in entries)
+
+
+# --------------------------------------------------------------------------- #
+# Static media serving (Phase 8): /static mount and detail-page embedding
+# --------------------------------------------------------------------------- #
+
+
+def test_media_urls_empty_without_media_path() -> None:
+    from app.api.dashboard import _media_urls
+
+    assert _media_urls(None) == {}
+
+
+def test_media_urls_passthrough_for_already_static_path() -> None:
+    from app.api.dashboard import _media_urls
+
+    assert _media_urls("/static/sample.mp4") == {"video_url": "/static/sample.mp4", "file": "sample.mp4"}
+
+
+def test_media_urls_resolves_local_file_under_generated_dir() -> None:
+    from app.api.dashboard import _media_urls
+    from app.config import settings
+
+    local_path = settings.generated_dir / "reel_abc123.mp4"
+    assert _media_urls(str(local_path)) == {"video_url": "/static/reel_abc123.mp4", "file": "reel_abc123.mp4"}
+
+
+def test_media_urls_empty_for_an_unrecognized_absolute_path() -> None:
+    from app.api.dashboard import _media_urls
+
+    assert _media_urls("/some/other/machine/reel.mp4") == {}
+
+
+def test_media_urls_assumes_temp_for_bare_relative_filenames() -> None:
+    from app.api.dashboard import _media_urls
+
+    assert _media_urls("reel_xyz.mp4") == {
+        "video_url": "/temp/reel_xyz.mp4",
+        "srt_url": "/temp/reel_xyz.srt",
+        "json_url": "/temp/reel_xyz.json",
+        "file": "reel_xyz.mp4",
+    }
+
+
+def test_queue_detail_embeds_video_when_media_is_servable(client) -> None:
+    with session_scope() as db:
+        row = _seed_queue_row(db, media_path="/static/sample.mp4")
+        content_id = row.id
+
+    response = client.get(f"/dashboard/queue/{content_id}")
+
+    assert '<video controls' in response.text
+    assert "/static/sample.mp4" in response.text
+
+
+def test_static_mount_serves_a_real_file(client) -> None:
+    from app.config import settings
+
+    probe = settings.generated_dir / "test_probe.txt"
+    probe.write_text("ok")
+    try:
+        response = client.get("/static/test_probe.txt")
+        assert response.status_code == 200
+        assert response.text == "ok"
+    finally:
+        probe.unlink()

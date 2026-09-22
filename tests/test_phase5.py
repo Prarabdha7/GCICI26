@@ -1,7 +1,7 @@
 """Phase 5 tests: swappable providers, research/lead-gen agents, persist_node.
 
-Every external HTTP call (Tavily, Serper, ScrapeGraph, Hunter.io, Google
-Places) is mocked — zero real API usage.
+Every external HTTP call (Serper, ScrapeGraph, Hunter.io, Google Places) is
+mocked — zero real API usage.
 
     pytest tests/test_phase5.py -v
 """
@@ -31,24 +31,6 @@ def _fake_response(json_data: dict, status_code: int = 200) -> httpx.Response:
 # --------------------------------------------------------------------------- #
 
 
-def test_tavily_search_maps_results(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "tavily_api_key", "key")
-    monkeypatch.setattr(
-        providers.httpx, "post",
-        lambda *a, **kw: _fake_response({"results": [{"title": "T", "url": "https://a.test", "content": "c"}]}),
-    )
-
-    results = providers.TavilySearch().search("query")
-
-    assert results == [{"title": "T", "url": "https://a.test", "snippet": "c"}]
-
-
-def test_tavily_search_requires_api_key(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "tavily_api_key", "")
-    with pytest.raises(providers.ProviderError):
-        providers.TavilySearch(api_key="").search("query")
-
-
 def test_serper_search_maps_organic_results(monkeypatch) -> None:
     monkeypatch.setattr(
         providers.httpx, "post",
@@ -63,16 +45,6 @@ def test_serper_search_maps_organic_results(monkeypatch) -> None:
 # --------------------------------------------------------------------------- #
 # providers.py — discovery
 # --------------------------------------------------------------------------- #
-
-
-def test_tavily_discovery_maps_search_results_to_prospects() -> None:
-    class FakeSearch(providers.BaseSearchProvider):
-        def search(self, query, *, max_results=5):
-            return [{"title": "Acme Jewellers", "url": "https://acme.test", "snippet": ""}]
-
-    prospects = providers.TavilyDiscovery(search_provider=FakeSearch()).discover(niche="jewellers", country="SG")
-
-    assert prospects == [{"company_name": "Acme Jewellers", "website": "https://acme.test"}]
 
 
 def test_google_places_discovery_maps_places(monkeypatch) -> None:
@@ -120,34 +92,26 @@ def test_get_hunter_contacts_requires_api_key(monkeypatch) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_get_search_provider_prefers_tavily(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "tavily_api_key", "key")
-    monkeypatch.setattr(settings, "serper_api_key", "key")
-    assert isinstance(providers.get_search_provider(), providers.TavilySearch)
-
-
-def test_get_search_provider_falls_back_to_serper(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "tavily_api_key", "")
+def test_get_search_provider_uses_serper(monkeypatch) -> None:
     monkeypatch.setattr(settings, "serper_api_key", "key")
     assert isinstance(providers.get_search_provider(), providers.SerperSearch)
 
 
 def test_get_search_provider_raises_with_no_keys(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "tavily_api_key", "")
     monkeypatch.setattr(settings, "serper_api_key", "")
     with pytest.raises(providers.ProviderError):
         providers.get_search_provider()
 
 
-def test_get_discovery_provider_prefers_tavily(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "tavily_api_key", "key")
-    assert isinstance(providers.get_discovery_provider(), providers.TavilyDiscovery)
-
-
-def test_get_discovery_provider_falls_back_to_google_places(monkeypatch) -> None:
-    monkeypatch.setattr(settings, "tavily_api_key", "")
+def test_get_discovery_provider_uses_google_places(monkeypatch) -> None:
     monkeypatch.setattr(settings, "google_places_api_key", "key")
     assert isinstance(providers.get_discovery_provider(), providers.GooglePlacesDiscovery)
+
+
+def test_get_discovery_provider_raises_with_no_keys(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "google_places_api_key", "")
+    with pytest.raises(providers.ProviderError):
+        providers.get_discovery_provider()
 
 
 # --------------------------------------------------------------------------- #
@@ -155,53 +119,44 @@ def test_get_discovery_provider_falls_back_to_google_places(monkeypatch) -> None
 # --------------------------------------------------------------------------- #
 
 
-def test_research_node_builds_digest_from_scraped_context(monkeypatch) -> None:
-    class FakeSearch(providers.BaseSearchProvider):
-        def search(self, query, *, max_results=5):
-            return [{"title": "T", "url": "https://a.test", "snippet": "fallback"}]
-
-    class FakeScraper:
-        def extract_markdown(self, url):
-            return "scraped markdown"
-
+def test_research_node_builds_digest_from_live_research(monkeypatch) -> None:
     captured = {}
+
+    async def fake_research_summary(query, **kw):
+        captured["query"] = query
+        return "live crawled markdown"
 
     def fake_text_call(*, system, user, temperature=None, provider=None):
         captured["user"] = user
         return "digest"
 
-    monkeypatch.setattr(research_module, "get_search_provider", lambda: FakeSearch())
-    monkeypatch.setattr(research_module, "ScrapeGraphClient", lambda: FakeScraper())
+    monkeypatch.setattr(research_module, "research_summary", fake_research_summary)
     monkeypatch.setattr(research_module, "text_call", fake_text_call)
 
     result = research_module.research_node({"brand": "Jade", "niche": "jewellers", "country": "SG"})
 
     assert result == {"research_notes": "digest"}
-    assert "scraped markdown" in captured["user"]
+    assert "live crawled markdown" in captured["user"]
+    assert "jewellers" in captured["query"]
 
 
-def test_research_node_falls_back_to_snippet_on_scrape_failure(monkeypatch) -> None:
-    class FakeSearch(providers.BaseSearchProvider):
-        def search(self, query, *, max_results=5):
-            return [{"title": "T", "url": "https://a.test", "snippet": "fallback snippet"}]
-
-    class FailingScraper:
-        def extract_markdown(self, url):
-            raise providers.ProviderError("boom")
-
+def test_research_node_falls_back_to_mock_digest_when_live_research_is_empty(monkeypatch) -> None:
     captured = {}
+
+    async def fake_research_summary(query, **kw):
+        return ""
 
     def fake_text_call(*, system, user, temperature=None, provider=None):
         captured["user"] = user
         return "digest"
 
-    monkeypatch.setattr(research_module, "get_search_provider", lambda: FakeSearch())
-    monkeypatch.setattr(research_module, "ScrapeGraphClient", lambda: FailingScraper())
+    monkeypatch.setattr(research_module, "research_summary", fake_research_summary)
     monkeypatch.setattr(research_module, "text_call", fake_text_call)
 
     research_module.research_node({"brand": "Jade", "niche": "jewellers", "country": "SG"})
 
-    assert "fallback snippet" in captured["user"]
+    # MockSearchProvider's canned results should ground the fallback digest.
+    assert "chubb" in captured["user"].lower() or "jade" in captured["user"].lower()
 
 
 # --------------------------------------------------------------------------- #
@@ -306,17 +261,11 @@ def test_lead_gen_graph_runs_research_and_discovery_in_parallel(monkeypatch) -> 
         def discover(self, *, niche, country, max_results=10):
             return [{"company_name": "Acme", "website": "https://acme.test"}]
 
+    async def fake_research_summary(query, **kw):
+        return "live crawled markdown"
+
     monkeypatch.setattr(research_module, "text_call", lambda **kw: "digest")
-    monkeypatch.setattr(
-        research_module, "ScrapeGraphClient",
-        lambda: type("S", (), {"extract_markdown": lambda self, url: "md"})(),
-    )
-
-    class FakeSearch(providers.BaseSearchProvider):
-        def search(self, query, *, max_results=5):
-            return [{"title": "T", "url": "https://a.test", "snippet": "s"}]
-
-    monkeypatch.setattr(research_module, "get_search_provider", lambda: FakeSearch())
+    monkeypatch.setattr(research_module, "research_summary", fake_research_summary)
     monkeypatch.setattr(leads_module, "get_discovery_provider", lambda: FakeDiscovery())
     monkeypatch.setattr(leads_module, "get_hunter_contacts", lambda domain: [{"value": "a@acme.test"}])
     monkeypatch.setattr(

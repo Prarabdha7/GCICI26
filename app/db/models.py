@@ -178,6 +178,9 @@ class FeedbackMemory(Base):
         ForeignKey("content_queue.id", ondelete="SET NULL"), default=None
     )
 
+    # Demo segregation: True only for explicitly-labeled walkthrough rows.
+    is_demo: Mapped[bool] = mapped_column(default=False)
+
     __table_args__ = (
         # Serves the retrieval query: WHERE brand=? AND platform=? ORDER BY timestamp DESC
         Index("ix_feedback_brand_platform_ts", "brand", "platform", "timestamp"),
@@ -211,6 +214,9 @@ class Lead(Base):
     outreach_draft: Mapped[str | None] = mapped_column(Text, default=None)
 
     status: Mapped[str] = mapped_column(String(32), index=True, default=LeadStatus.NEW.value)
+
+    # Demo segregation: True only for explicitly-labeled walkthrough rows.
+    is_demo: Mapped[bool] = mapped_column(default=False)
 
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[dt.datetime] = mapped_column(

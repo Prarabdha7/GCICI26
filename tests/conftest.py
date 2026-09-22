@@ -38,7 +38,6 @@ def _isolated_database():
 _SECRET_ATTRS = (
     "gemini_api_key",
     "openai_api_key",
-    "tavily_api_key",
     "serper_api_key",
     "scrapegraph_api_key",
     "google_places_api_key",
@@ -55,3 +54,19 @@ def _no_real_keys(monkeypatch):
     for attr in _SECRET_ATTRS:
         monkeypatch.setattr(settings, attr, "")
     monkeypatch.setattr(settings, "demo_mode", False)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_research(monkeypatch):
+    """market_research_node / research_node hit a real DuckDuckGo + Crawl4AI
+    search by default; auto-mock both modules' bound name so no test makes a
+    live network call unless it explicitly re-patches this itself."""
+
+    async def _empty_research(*args, **kwargs) -> str:
+        return ""
+
+    import app.agents.research as research_module
+    import app.graph.nodes as nodes_module
+
+    monkeypatch.setattr(nodes_module, "research_summary", _empty_research)
+    monkeypatch.setattr(research_module, "research_summary", _empty_research)
