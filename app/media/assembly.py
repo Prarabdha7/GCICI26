@@ -327,24 +327,50 @@ def assemble_kenburns_reel(
 
 
 def _reel_backdrop(script: str, brand: str, background_path: Path | None = None, assets_dir: Path | None = None):
-    """Explicit B-roll path → per-brand loop override → procedural canvas."""
+    """Explicit B-roll path → per-brand loop override → Imagen 3 still → procedural canvas."""
     from PIL import Image
+    from app.media.video_providers import (
+        generate_imagen_still,
+        get_cinematic_prompt,
+        get_curated_broll,
+    )
 
     assets = assets_dir if assets_dir is not None else settings.video_assets_dir
-    candidates = []
+    candidates: list[Path] = []
     if background_path is not None:
         candidates.append(Path(background_path))
+
+    # Strategy 4: Curated local B-roll loop
+    broll = get_curated_broll(brand, assets_dir=assets)
+    if broll:
+        candidates.append(broll)
+
     brand_file = (assets / f"{(brand or '').strip().lower().replace(' ', '_')}_loop.mp4")
     candidates.append(brand_file)
+
     for candidate in candidates:
         try:
-            if candidate.is_file():
+            if candidate.is_file() and candidate.stat().st_size > 0:
+                if candidate.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+                    return Image.open(candidate).convert("RGB").resize((1296, 2304))
                 import imageio.v2 as imageio
 
                 frame = imageio.get_reader(str(candidate)).get_data(0)
                 return Image.fromarray(frame).resize((1296, 2304))
         except Exception as exc:
-            log.warning("B-roll %s unreadable (%s) — procedural canvas", candidate, exc)
+            log.warning("B-roll %s unreadable (%s) — continuing", candidate, exc)
+
+    # Strategy 1 Still: Imagen 3 / Gemini 4K still
+    prompt = get_cinematic_prompt(brand, script)
+    still_path = TEMP_DIR / f"still_{brand}_{uuid.uuid4().hex[:6]}.png"
+    generated = generate_imagen_still(prompt, output_path=still_path)
+    if generated and generated.is_file():
+        try:
+            return Image.open(generated).convert("RGB").resize((1296, 2304))
+        except Exception as exc:
+            log.warning("Generated still unreadable (%s)", exc)
+
+    # Strategy 5: Procedural brand canvas
     return render_reel_canvas(script, brand=brand)
 
 
@@ -393,6 +419,24 @@ def assemble_video(
         render_caption_card(script, brand=brand, output_path=output_dir / f"caption_{run_id}.png")
     except Exception:
         pass
+
+    if background_path is None:
+        from app.media.video_providers import (
+            fetch_community_video,
+            generate_veo_clip,
+            get_cinematic_prompt,
+            get_curated_broll,
+        )
+
+        prompt = get_cinematic_prompt(brand, script)
+        veo_target = output_dir / f"veo_{run_id}.mp4"
+        background_path = generate_veo_clip(prompt, output_path=veo_target, brand=brand)
+        if background_path is None:
+            comm_target = output_dir / f"comm_{run_id}.mp4"
+            background_path = fetch_community_video(prompt, output_path=comm_target)
+        if background_path is None:
+            background_path = get_curated_broll(brand)
+
     # moviepy unavailable: render a real MP4 with the built-in 2.5D Ken Burns
     # engine (Pillow frames + bundled ffmpeg). Raises honestly when the
     # toolchain is missing; video_assembly_node turns that into no-media.

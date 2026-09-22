@@ -87,3 +87,36 @@ def test_reel_backdrop_falls_back_to_canvas(tmp_path: Path) -> None:
     canvas = assembly._reel_backdrop("hello", brand="Jade",
                                      background_path=tmp_path / "missing.mp4")
     assert canvas.size == (1296, 2304)
+
+
+def test_video_providers_cinematic_prompt() -> None:
+    from app.media.video_providers import get_cinematic_prompt
+
+    prompt = get_cinematic_prompt("Jade", "Exclusive jewelry protection in Singapore")
+    assert "Emerald" in prompt
+    assert "jewelry" in prompt
+
+
+def test_video_providers_veo_safe_fallback(tmp_path: Path) -> None:
+    from app.media.video_providers import generate_veo_clip
+
+    # With no key or in test fixture, must return None safely with no crash
+    res = generate_veo_clip("cinematic vault", output_path=tmp_path / "veo.mp4")
+    assert res is None
+
+
+def test_video_providers_community_safe_fallback(tmp_path: Path, monkeypatch) -> None:
+    from app.media.video_providers import fetch_community_video
+
+    # Mock offline / timeout
+    res = fetch_community_video("cinematic vault", output_path=tmp_path / "comm.mp4", timeout=0.01)
+    assert res is None
+
+
+def test_video_providers_curated_broll_finds_file(tmp_path: Path) -> None:
+    from app.media.video_providers import get_curated_broll
+
+    fake_broll = tmp_path / "jade_vault_loop.mp4"
+    fake_broll.write_bytes(b"dummy")
+    found = get_curated_broll("Jade", assets_dir=tmp_path)
+    assert found == fake_broll

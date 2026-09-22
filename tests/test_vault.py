@@ -30,13 +30,15 @@ def test_export_vault_writes_markdown_and_graph(tmp_path: Path) -> None:
 
     assert (tmp_path / "vault" / "brands" / "Jade.md").exists()
     assert (tmp_path / "vault" / "regulations" / "Singapore.md").exists()
+    assert (tmp_path / "vault" / "competitors" / "Chubb.md").exists()
+    assert (tmp_path / "vault" / "JA_Assure_Second_Brain.canvas").exists()
     assert list((tmp_path / "vault" / "feedback").glob("*.md"))
     assert list((tmp_path / "vault" / "assets").glob("*.md"))
     assert "[[Regulation: Singapore]]" in (tmp_path / "vault" / "brands" / "Jade.md").read_text(encoding="utf-8")
     assert "[[Brand: Jade]]" in next((tmp_path / "vault" / "feedback").glob("*.md")).read_text(encoding="utf-8")
 
     kinds = {n["kind"] for n in graph["nodes"]}
-    assert {"brand", "regulation", "feedback", "asset"} <= kinds
+    assert {"brand", "regulation", "feedback", "asset", "competitor"} <= kinds
     assert any(e[0].startswith("feedback:") and e[1].startswith("brand:") for e in graph["edges"])
 
 

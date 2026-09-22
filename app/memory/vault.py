@@ -147,6 +147,115 @@ def export_intel(root: Path, db) -> tuple[list[dict], list[list[str]]]:
     return nodes, edges
 
 
+def export_competitors(root: Path) -> tuple[list[dict], list[list[str]]]:
+    """Projects key regional competitors into vault markdown notes."""
+    competitors = [
+        {
+            "name": "Chubb",
+            "niche": "Jeweller's Block & High-Value Marine Cargo",
+            "threat": "High brand recognition, legacy broker relationships across SG and MY.",
+            "brands": ["Jade", "Jaguar Transit"],
+            "regulations": ["Singapore", "Malaysia"],
+        },
+        {
+            "name": "Medical Protection Society",
+            "niche": "Medical Indemnity & Defence Mutual",
+            "threat": "Dominant mutual insurer in Singapore and Malaysia, long institutional tenure.",
+            "brands": ["DoctorShield"],
+            "regulations": ["Singapore", "Malaysia"],
+        },
+        {
+            "name": "Marsh McLennan",
+            "niche": "Global Specie & High-Value Logistics Broker",
+            "threat": "Large multinational account coverage, packaged cargo policies.",
+            "brands": ["Jaguar Transit"],
+            "regulations": ["Singapore", "Hong Kong"],
+        },
+    ]
+    nodes, edges = [], []
+    for c in competitors:
+        name_slug = _slug(c["name"])
+        brand_links = [f"[[Brand: {b}]]" for b in c["brands"]]
+        reg_links = [f"[[Regulation: {r}]]" for r in c["regulations"]]
+        body = (
+            _frontmatter({"kind": "competitor", "name": c["name"], "niche": c["niche"]})
+            + f"\n# Competitor: {c['name']}\n\n**Niche:** {c['niche']}\n\n"
+            + f"**Market Threat Analysis:** {c['threat']}\n\n"
+            + "## Target JA Assure Brands\n\n" + "\n".join(f"- {b}" for b in brand_links) + "\n\n"
+            + "## Operating Jurisdictions\n\n" + "\n".join(f"- {r}" for r in reg_links) + "\n"
+        )
+        rel = _write(root, "competitors", f"{c['name'].replace(' ', '_')}.md", body=body)
+        node_id = f"competitor:{name_slug}"
+        nodes.append({"id": node_id, "label": f"Competitor: {c['name']}", "kind": "competitor", "path": rel})
+        for b in c["brands"]:
+            edges.append([node_id, f"brand:{b}"])
+        for r in c["regulations"]:
+            edges.append([node_id, f"regulation:{r}"])
+    return nodes, edges
+
+
+def export_canvas(root: Path, nodes: list[dict], edges: list[list[str]]) -> Path:
+    """Generates an official Obsidian Canvas (.canvas) file for native graph visualization."""
+    canvas_nodes = []
+    kind_colors = {
+        "brand": "1",        # red/crimson
+        "regulation": "4",   # cyan/blue
+        "competitor": "5",   # purple
+        "feedback": "3",     # yellow
+        "asset": "2",        # green
+        "intel": "6",        # magenta
+    }
+    col_x = {
+        "brand": 100,
+        "competitor": 460,
+        "regulation": 820,
+        "feedback": 1180,
+        "asset": 1540,
+        "intel": 1900,
+    }
+    counters: dict[str, int] = {}
+    id_to_canvas_id: dict[str, str] = {}
+
+    for i, n in enumerate(nodes[:100]):  # cap to 100 nodes for clean canvas rendering
+        kind = n.get("kind", "asset")
+        row = counters.get(kind, 0)
+        counters[kind] = row + 1
+        x = col_x.get(kind, 1000)
+        y = 100 + row * 160
+        cid = f"cnode_{i}"
+        id_to_canvas_id[n["id"]] = cid
+        canvas_nodes.append({
+            "id": cid,
+            "type": "file" if n.get("path") else "text",
+            "file": n.get("path"),
+            "text": f"### {n.get('label')}\nKind: {kind}" if not n.get("path") else None,
+            "x": x,
+            "y": y,
+            "width": 280,
+            "height": 130,
+            "color": kind_colors.get(kind, "1"),
+        })
+
+    canvas_edges = []
+    for i, (src, dst) in enumerate(edges):
+        if src in id_to_canvas_id and dst in id_to_canvas_id:
+            canvas_edges.append({
+                "id": f"cedge_{i}",
+                "fromNode": id_to_canvas_id[src],
+                "fromSide": "right",
+                "toNode": id_to_canvas_id[dst],
+                "toSide": "left",
+            })
+
+    canvas_data = {
+        "nodes": canvas_nodes,
+        "edges": canvas_edges,
+    }
+    canvas_path = root / "JA_Assure_Second_Brain.canvas"
+    canvas_path.write_text(json.dumps(canvas_data, indent=2, ensure_ascii=False), encoding="utf-8")
+    return canvas_path
+
+
 def export_vault(db, root: Path | None = None) -> dict:
     """Rebuild the whole vault from the DB. Returns {"nodes": [...], "edges": [...]}."""
     from app.config import settings
@@ -155,6 +264,9 @@ def export_vault(db, root: Path | None = None) -> dict:
     root.mkdir(parents=True, exist_ok=True)
     nodes = export_brands(root)
     edges: list[list[str]] = []
+    comp_nodes, comp_edges = export_competitors(root)
+    nodes.extend(comp_nodes)
+    edges.extend(comp_edges)
     for exporter in (export_feedback, export_queue, export_intel):
         sub_nodes, sub_edges = exporter(root, db)
         nodes.extend(sub_nodes)
@@ -170,5 +282,9 @@ def export_vault(db, root: Path | None = None) -> dict:
                 edges.append([f"brand:{info['name']}", f"regulation:{territory}"])
     graph = {"nodes": nodes, "edges": edges}
     (root / "graph.json").write_text(json.dumps(graph, ensure_ascii=False, indent=1), encoding="utf-8")
+    try:
+        export_canvas(root, nodes, edges)
+    except Exception as exc:
+        log.warning("Canvas export skipped (%s)", exc)
     log.info("vault exported: %s nodes, %s edges -> %s", len(nodes), len(edges), root)
     return graph

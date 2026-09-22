@@ -218,7 +218,7 @@ async function renderLeads() {
 }
 
 /* ---------------- memory (Second Brain) ---------------- */
-const KIND_COLORS = { brand: "#38bdf8", regulation: "#a78bfa", feedback: "#f59e0b", asset: "#22c55e", intel: "#f472b6" };
+const KIND_COLORS = { brand: "#38bdf8", regulation: "#a78bfa", competitor: "#ec4899", feedback: "#f59e0b", asset: "#22c55e", intel: "#f472b6" };
 
 async function renderMemory() {
   let graph = { nodes: [], edges: [] };
@@ -248,7 +248,8 @@ async function renderMemory() {
     <h2>Memory vault <span class="mut">(every node is a real DB row — open the folder in Obsidian for Graph View)</span></h2>
     <div class="grid two"><div class="card">
       <svg viewBox="0 0 ${W} ${H}" style="width:100%;background:#0b1220;border-radius:8px">${edgeSvg}${nodeSvg}</svg>
-      <p class="mut">${graph.nodes.length} nodes · ${graph.edges.length} links · brands <span style="color:#38bdf8">●</span> regulations <span style="color:#a78bfa">●</span> feedback <span style="color:#f59e0b">●</span> assets <span style="color:#22c55e">●</span> intel <span style="color:#f472b6">●</span></p>
+      <p class="mut">${graph.nodes.length} nodes · ${graph.edges.length} links · brands <span style="color:#38bdf8">●</span> competitors <span style="color:#ec4899">●</span> regulations <span style="color:#a78bfa">●</span> feedback <span style="color:#f59e0b">●</span> assets <span style="color:#22c55e">●</span> intel <span style="color:#f472b6">●</span></p>
+      <p><a href="/vault/JA_Assure_Second_Brain.canvas" download="JA_Assure_Second_Brain.canvas" class="btn" style="display:inline-block;padding:4px 10px;background:#1e293b;border:1px solid #38bdf8;border-radius:4px;color:#38bdf8;text-decoration:none">📥 Download Obsidian Canvas (.canvas)</a></p>
     </div><div class="card"><h3>Node preview</h3><div id="vprev" class="mut">Click a node to read its markdown (served from <code>/vault/</code>).</div></div></div>`;
   view.querySelectorAll(".vnode").forEach(g => g.addEventListener("click", async () => {
     const p = g.dataset.path;
