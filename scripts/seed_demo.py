@@ -24,11 +24,16 @@ log = logging.getLogger("seed_demo")
 
 SAMPLE_MEDIA_URL = "/static/sample.mp4"
 
-# -- approved: localized posts across SG / MY / TH, ready for the auto-publisher --
-APPROVED_ROWS = [
+# -- pending: localized posts across SG / MY / TH, awaiting a human decision.
+# Never seeded pre-approved — the worker in worker/scheduler.py auto-publishes
+# any row with status=APPROVED with no is_demo check, so a demo row seeded as
+# APPROVED would trigger a silent, unauthorized live publish to social media
+# the moment the worker's poll runs. These have to go through the dashboard's
+# Approve action, live, like real content would.
+PENDING_ROWS = [
     dict(
         brand="Jade", platform="instagram", language="en", content_type="post",
-        status=ContentStatus.APPROVED.value, media_path=SAMPLE_MEDIA_URL,
+        status=ContentStatus.PENDING.value, media_path=SAMPLE_MEDIA_URL,
         is_demo=True,
         draft_content=(
             "Discretion is not a discount. Jade covers what your collection is "
@@ -38,7 +43,7 @@ APPROVED_ROWS = [
     ),
     dict(
         brand="Jaguar Transit", platform="linkedin", language="ms", content_type="post",
-        status=ContentStatus.APPROVED.value, media_path=SAMPLE_MEDIA_URL,
+        status=ContentStatus.PENDING.value, media_path=SAMPLE_MEDIA_URL,
         is_demo=True,
         draft_content=(
             "Satu kelewatan serah boleh menelan kos lebih daripada nilai barang "
@@ -49,7 +54,7 @@ APPROVED_ROWS = [
     ),
     dict(
         brand="DoctorShield", platform="linkedin", language="th", content_type="post",
-        status=ContentStatus.APPROVED.value, media_path=SAMPLE_MEDIA_URL,
+        status=ContentStatus.PENDING.value, media_path=SAMPLE_MEDIA_URL,
         is_demo=True,
         draft_content=(
             "การตัดสินใจทางคลินิกเป็นของคุณ ความเสี่ยงทางการเงินจากการเรียกร้องค่าสินไหม "
@@ -90,9 +95,9 @@ MANUAL_INTERVENTION_ROWS = [
     ),
 ]
 
-CONTENT_QUEUE_ROWS = APPROVED_ROWS + MANUAL_INTERVENTION_ROWS
+CONTENT_QUEUE_ROWS = PENDING_ROWS + MANUAL_INTERVENTION_ROWS
 
-# -- feedback history: aligned to the approved rows' brand/platform above, so
+# -- feedback history: aligned to the pending rows' brand/platform above, so
 # get_recent_feedback() has something to surface for exactly what's on screen --
 FEEDBACK_MEMORY_ROWS = [
     dict(
@@ -155,7 +160,7 @@ LEAD_ROWS = [
 def _ensure_sample_media() -> None:
     """Generates a real sample reel via the Phase 4 pipeline so /static/sample.mp4
     is an actual playable file, not a broken link, for the SAMPLE_MEDIA_URL
-    referenced by the approved rows above."""
+    referenced by the pending rows above."""
     sample_path = settings.generated_dir / "sample.mp4"
     if sample_path.exists():
         log.info("Sample media already exists at %s — skipping generation.", sample_path)
