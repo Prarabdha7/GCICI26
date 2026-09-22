@@ -1,9 +1,11 @@
-"""Seed realistic demo data so the review dashboard looks live for a pitch.
+"""Seed LABELED demo data so the review dashboard looks live for a pitch.
 
     python -m scripts.seed_demo
 
-Safe to re-run: each table is seeded only if it is currently empty, so this
-never duplicates rows into a database that already has real content.
+DEMO-ONLY: refuses to run unless DEMO_MODE=true. Every seeded row is tagged
+is_demo=True (content, feedback, leads) so demo output is never mistaken for
+real content and never enters real metrics. Safe to re-run: each table is
+seeded only if it is currently empty, so this never duplicates rows.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ APPROVED_ROWS = [
     dict(
         brand="Jade", platform="instagram", language="en", content_type="post",
         status=ContentStatus.APPROVED.value, media_path=SAMPLE_MEDIA_URL,
+        is_demo=True,
         draft_content=(
             "Discretion is not a discount. Jade covers what your collection is "
             "actually worth — appraised value, not a guess. Terms, conditions, "
@@ -36,6 +39,7 @@ APPROVED_ROWS = [
     dict(
         brand="Jaguar Transit", platform="linkedin", language="ms", content_type="post",
         status=ContentStatus.APPROVED.value, media_path=SAMPLE_MEDIA_URL,
+        is_demo=True,
         draft_content=(
             "Satu kelewatan serah boleh menelan kos lebih daripada nilai barang "
             "itu sendiri. Jaguar Transit melindungi kargo bernilai tinggi dari "
@@ -46,6 +50,7 @@ APPROVED_ROWS = [
     dict(
         brand="DoctorShield", platform="linkedin", language="th", content_type="post",
         status=ContentStatus.APPROVED.value, media_path=SAMPLE_MEDIA_URL,
+        is_demo=True,
         draft_content=(
             "การตัดสินใจทางคลินิกเป็นของคุณ ความเสี่ยงทางการเงินจากการเรียกร้องค่าสินไหม "
             "ไม่จำเป็นต้องเป็นของคุณ DoctorShield — ความคุ้มครองสำหรับแพทย์ผู้ปฏิบัติงาน "
@@ -59,6 +64,7 @@ MANUAL_INTERVENTION_ROWS = [
     dict(
         brand="Jaguar Transit", platform="tiktok", language="en", content_type="post",
         status=ContentStatus.MANUAL_INTERVENTION.value, retry_count=4,
+        is_demo=True,
         draft_content=(
             "Nothing you ship will ever go missing with Jaguar Transit — 100% "
             "guaranteed, always approved."
@@ -72,6 +78,7 @@ MANUAL_INTERVENTION_ROWS = [
     dict(
         brand="DoctorShield", platform="instagram", language="th", content_type="post",
         status=ContentStatus.MANUAL_INTERVENTION.value, retry_count=5,
+        is_demo=True,
         draft_content=(
             "แพทย์ทุกคนที่ถือ DoctorShield จะไม่มีวันถูกฟ้องร้องเรื่องการรักษาที่ผิดพลาดอีกต่อไป"
         ),
@@ -90,11 +97,13 @@ CONTENT_QUEUE_ROWS = APPROVED_ROWS + MANUAL_INTERVENTION_ROWS
 FEEDBACK_MEMORY_ROWS = [
     dict(
         brand="Jade", platform="instagram", error_tag="too_salesy",
+        is_demo=True,
         human_note="Read like a discount ad — Jade never discounts. Reframe "
         "around craftsmanship and discretion, not price.",
     ),
     dict(
         brand="Jaguar Transit", platform="linkedin", error_tag="wrong_cta",
+        is_demo=True,
         human_note="CTA said 'Buy now' — B2B logistics buyers don't respond to "
         "that register. Use 'Request a risk assessment' instead.",
     ),
@@ -106,6 +115,7 @@ LEAD_ROWS = [
         email="priya@marinabayjewellers.sg", website="https://marinabayjewellers.sg",
         country="Singapore", segment="jeweller", target_brand="Jade",
         fit_score=88,
+        is_demo=True,
         score_rationale="High-value retail jeweller in the CBD with no visible "
         "block cover mentioned publicly; prior press coverage of a nearby break-in.",
         outreach_draft="Hi Priya — after the recent spate of CBD jewellery store "
@@ -118,6 +128,7 @@ LEAD_ROWS = [
         email="aiman@klexpress.my", website="https://klexpress.my",
         country="Malaysia", segment="courier", target_brand="Jaguar Transit",
         fit_score=76,
+        is_demo=True,
         score_rationale="Mid-size courier fleet expanding into cross-border "
         "high-value freight; no transit insurer named on their site.",
         outreach_draft="Hi Aiman — congrats on the KL-Singapore lane expansion. "
@@ -130,6 +141,7 @@ LEAD_ROWS = [
         email="clinic@drtanfamily.sg", website="https://drtanfamily.sg",
         country="Singapore", segment="clinic", target_brand="DoctorShield",
         fit_score=82,
+        is_demo=True,
         score_rationale="Solo GP practice, no indemnity provider named publicly; "
         "renewal season for most SG clinics is Q1.",
         outreach_draft="Hi Dr. Tan — with renewal season coming up, happy to "
@@ -200,6 +212,9 @@ def _seed_leads(db) -> int:
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)-8s %(message)s")
+    if not settings.demo_mode:
+        log.error("Refusing: set DEMO_MODE=true to seed labeled demo rows. Real DBs stay clean.")
+        return 2
     init_db()
     _ensure_sample_media()
     with session_scope() as db:

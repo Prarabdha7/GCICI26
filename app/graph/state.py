@@ -20,6 +20,7 @@ class MarketingState(TypedDict):
     enable_adversarial: NotRequired[bool]
     audit_transcript: NotRequired[str]
     healed_content: NotRequired[str]
+    is_demo: NotRequired[bool]
     compliance_errors: list[str]
     retry_count: int
     feedback_guidance: str

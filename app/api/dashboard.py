@@ -74,8 +74,12 @@ def manual_intervention_view(request: Request, db: Session = Depends(get_db)) ->
 
 @router.get("/dashboard/metrics", response_class=HTMLResponse)
 def metrics_view(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+    # Real-only headline numbers — demo rows are counted separately below and
+    # never mixed into real rates.
     rows = db.execute(
-        select(ContentQueue.status, func.count(ContentQueue.id)).group_by(ContentQueue.status)
+        select(ContentQueue.status, func.count(ContentQueue.id))
+        .where(ContentQueue.is_demo.is_(False))
+        .group_by(ContentQueue.status)
     ).all()
     by_status = {status: count for status, count in rows}
     approved = by_status.get(ContentStatus.APPROVED.value, 0)
@@ -83,14 +87,15 @@ def metrics_view(request: Request, db: Session = Depends(get_db)) -> HTMLRespons
     decided = approved + rejected
 
     feedback_rows = list(db.scalars(select(FeedbackMemory).order_by(FeedbackMemory.timestamp.desc()).limit(50)))
-    # edit-distance telemetry from human-edited rows (draft vs final)
+    # edit-distance telemetry from human-edited REAL rows (draft vs final)
     edited = list(
         db.scalars(
-            select(ContentQueue).where(ContentQueue.final_content.is_not(None)).limit(200)
+            select(ContentQueue).where(ContentQueue.final_content.is_not(None), ContentQueue.is_demo.is_(False)).limit(200)
         )
     )
     distances = [_edit_distance(r.draft_content or "", r.final_content or "") for r in edited if r.final_content]
     avg_edit = round(sum(distances) / len(distances), 1) if distances else 0.0
+    demo_count = db.scalar(select(func.count(ContentQueue.id)).where(ContentQueue.is_demo.is_(True))) or 0
 
     return templates.TemplateResponse(
         request,
@@ -99,11 +104,13 @@ def metrics_view(request: Request, db: Session = Depends(get_db)) -> HTMLRespons
             "active_tab": "metrics",
             "by_status": by_status,
             "rejection_rate": round(rejected / decided, 4) if decided else 0.0,
-            "avg_retries": round(db.scalar(select(func.avg(ContentQueue.retry_count))) or 0.0, 2),
+            "avg_retries": round(db.scalar(select(func.avg(ContentQueue.retry_count)).where(ContentQueue.is_demo.is_(False))) or 0.0, 2),
             "feedback_entries": db.scalar(select(func.count(FeedbackMemory.id))) or 0,
             "leads": db.scalar(select(func.count(Lead.id))) or 0,
             "avg_edit_distance": avg_edit,
             "lessons": feedback_rows[:15],
+            "demo_count": demo_count,
+            "demo_mode": settings.demo_mode,
         },
     )
 
@@ -274,10 +281,13 @@ def generate_campaign(
     topic: str = Form(default=""),
     content_type: str = Form(default="post"),
 ):
-    """Mission-control trigger: runs the LangGraph pipeline synchronously (zero-key safe)."""
+    """Mission-control trigger: runs the LangGraph pipeline synchronously.
+    Real mode: requires a configured LLM or fails honestly. Demo mode
+    (DEMO_MODE=true): produces rows explicitly labeled DEMO."""
     import uuid
 
     from app.graph.graph import build_graph
+    from app.db.database import session_scope as _scope
 
     initial_state = {
         "draft_content": "",
@@ -297,9 +307,17 @@ def generate_campaign(
     try:
         graph = build_graph()
         final_state = graph.invoke(initial_state, config={"configurable": {"thread_id": str(uuid.uuid4())}})
-        msg = f"Generated {brand}/{platform} (content_id={final_state.get('content_id')}, retries={final_state.get('retry_count', 0)})."
+        is_demo_row = False
+        try:
+            with _scope() as _db:
+                _row = _db.get(ContentQueue, final_state.get("content_id"))
+                is_demo_row = bool(_row.is_demo) if _row is not None else False
+        except Exception:
+            pass
+        tag = "[DEMO — simulated, not real] " if (settings.demo_mode or is_demo_row) else ""
+        msg = f"{tag}Generated {brand}/{platform} (content_id={final_state.get('content_id')}, retries={final_state.get('retry_count', 0)})."
     except Exception as exc:
-        msg = f"Generation failed: {exc}"
+        msg = f"Generation failed honestly (real mode, no fabrication): {exc}"
     # re-render queue with a status banner
     from sqlalchemy.orm import Session as SASession
 
@@ -366,9 +384,10 @@ def newsjack(
             },
             config={"configurable": {"thread_id": str(uuid.uuid4())}},
         )
-        msg = f"Newsjacked {brand}/{country} (content_id={final_state.get('content_id')}): {topic[:120]}"
+        tag = "[DEMO — simulated, not real] " if settings.demo_mode else ""
+        msg = f"{tag}Newsjacked {brand}/{country} (content_id={final_state.get('content_id')}): {topic[:120]}"
     except Exception as exc:
-        msg = f"Newsjack failed: {exc}"
+        msg = f"Newsjack failed honestly (real mode, no fabrication): {exc}"
     db: Session = next(get_db())
     try:
         items = list(

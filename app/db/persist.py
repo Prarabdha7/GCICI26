@@ -23,6 +23,7 @@ def create_content_queue_row(
     healed_content: str | None = None,
     audit_transcript: str | None = None,
     formats_json: str | None = None,
+    is_demo: bool = False,
 ) -> ContentQueue:
     row = ContentQueue(
         brand=brand,
@@ -39,6 +40,7 @@ def create_content_queue_row(
         healed_content=healed_content,
         audit_transcript=audit_transcript,
         formats_json=formats_json,
+        is_demo=is_demo,
     )
     db.add(row)
     db.commit()

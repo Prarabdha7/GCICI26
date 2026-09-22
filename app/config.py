@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     # --- LLM ---
     llm_provider: Literal["gemini", "openai"] = "gemini"
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-3.6-flash"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     llm_temperature: float = 0.7
@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     # --- state machine ---
     max_compliance_retries: int = 3
     feedback_memory_limit: int = 5
+
+    # --- demo mode ---------------------------------------------------------
+    # Demo writes (fallback copy, mock providers/publisher, stub reels, seed
+    # rows) are allowed ONLY when DEMO_MODE=true, and are always labeled
+    # demo/mock in the DB and UI. Default false = real-only, honest failures.
+    demo_mode: bool = False
 
     # --- research / scraping (Phase 5) ---
     serper_api_key: str = ""
@@ -59,6 +65,10 @@ class Settings(BaseSettings):
     ayrshare_api_key: str = ""
     public_media_base_url: str = ""
     publish_poll_interval: int = 60
+    # Embedded worker serves `python run.py`; standalone `python -m
+    # worker.scheduler` (run_demo.sh) sets WORKER_EMBEDDED=false so two
+    # schedulers never poll the approved queue at once.
+    worker_embedded: bool = True
 
     # --- paths ---
     @property

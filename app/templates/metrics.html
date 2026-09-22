@@ -70,4 +70,6 @@ fetch("/api/metrics/trend?days=14").then(r => r.json()).then(rows => {
         {% endfor %}
     </ul>
 </article>
+{% if demo_count %}<p><strong>Demo rows excluded from real metrics: {{ demo_count }}</strong> (labeled simulations only — never counted as real).</p>{% endif %}
+{% if demo_mode %}<p><em>DEMO_MODE is on: new fallback/mock output will be labeled DEMO.</em></p>{% endif %}
 {% endblock %}

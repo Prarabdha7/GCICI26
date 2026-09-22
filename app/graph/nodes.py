@@ -73,7 +73,8 @@ def market_research_node(state: MarketingState) -> dict:
 def content_node(state: MarketingState) -> dict:
     """Generate (or rewrite) the draft. Injects prior compliance violations
     into the rewrite prompt so a retry is never identical to the last draft.
-    Zero-key safe: domain fallback when the LLM is unavailable."""
+    Real mode: LLM errors propagate honestly. Demo mode (DEMO_MODE=true):
+    labeled domain fallback tagged [DEMO]."""
     system = prompts.content_system_prompt(
         brand=state["brand"],
         platform=state["platform"],
@@ -88,13 +89,23 @@ def content_node(state: MarketingState) -> dict:
     )
     try:
         draft = text_call(system=system, user=user)
+        return _log_content(state, draft)
     except LLMError as exc:
-        log.warning("content_node LLM unavailable (%s) — domain fallback", exc)
-        draft = fallback_content(
+        if not settings.demo_mode:
+            log.error("content_node LLM unavailable in real mode (%s) — failing honestly", exc)
+            raise
+        log.warning("content_node LLM unavailable (%s) — labeled DEMO fallback", exc)
+        draft = "[DEMO] " + fallback_content(
             state["brand"], state["platform"],
             topic=state.get("topic", "") or user[:200],
             feedback_guidance=state.get("feedback_guidance", ""),
         )
+        result = _log_content(state, draft)
+        result["is_demo"] = True
+        return result
+
+
+def _log_content(state: MarketingState, draft: str) -> dict:
     log.info(
         "content_node brand=%s platform=%s retry_count=%s",
         state["brand"], state["platform"], state.get("retry_count", 0),
@@ -105,7 +116,7 @@ def content_node(state: MarketingState) -> dict:
 def localization_node(state: MarketingState) -> dict:
     """Adapt the draft for the target market. Runs even for `en` (a light
     regional pass), and always before the compliance gate.
-    Zero-key safe: offline regional pass when the LLM is unavailable."""
+    Real mode: LLM errors propagate. Demo mode: labeled offline pass."""
     system = prompts.localization_system_prompt(brand=state["brand"], language=state["language"])
     user = prompts.localization_user_prompt(
         draft_content=state["draft_content"], language=state["language"]
@@ -113,8 +124,13 @@ def localization_node(state: MarketingState) -> dict:
     try:
         localized = text_call(system=system, user=user)
     except LLMError as exc:
-        log.warning("localization_node LLM unavailable (%s) — offline pass", exc)
-        localized = fallback_localize(state["draft_content"], state["language"], state["brand"])
+        if not settings.demo_mode:
+            log.error("localization_node LLM unavailable in real mode (%s) — failing honestly", exc)
+            raise
+        log.warning("localization_node LLM unavailable (%s) — labeled DEMO pass", exc)
+        localized = "[DEMO] " + fallback_localize(state["draft_content"], state["language"], state["brand"])
+        log.info("localization_node brand=%s language=%s (demo)", state["brand"], state["language"])
+        return {"draft_content": localized, "is_demo": True}
     log.info("localization_node brand=%s language=%s", state["brand"], state["language"])
     return {"draft_content": localized}
 
@@ -122,7 +138,8 @@ def localization_node(state: MarketingState) -> dict:
 def compliance_gate_node(state: MarketingState) -> dict:
     """Structured, temperature-0 judge grounded in compliance_rubric.md, read
     fresh from disk on every call so rubric edits need no restart.
-    Zero-key safe: heuristic banned-phrase gate when the LLM judge is down."""
+    LLM judge when available; deterministic local banned-phrase pre-check is
+    always applied too and labeled [local-check] so its origin is explicit."""
     try:
         rubric = settings.compliance_rubric_path.read_text(encoding="utf-8")
     except OSError:
@@ -132,8 +149,12 @@ def compliance_gate_node(state: MarketingState) -> dict:
     try:
         verdict = structured_call(system=system, user=user, schema=COMPLIANCE_SCHEMA, temperature=0.0)
     except LLMError as exc:
-        log.warning("compliance_gate LLM unavailable (%s) — heuristic gate", exc)
+        log.warning("compliance_gate LLM unavailable (%s) — local deterministic check", exc)
         verdict = heuristic_compliance_check(state["draft_content"])
+        verdict = {
+            "is_compliant": verdict["is_compliant"],
+            "violations": [f"[local-check] {v}" for v in verdict["violations"]],
+        }
 
     is_compliant = bool(verdict.get("is_compliant"))
     violations = list(verdict.get("violations") or [])
@@ -166,6 +187,7 @@ def persist_node(state: MarketingState) -> dict:
     except Exception as exc:
         log.warning("format pack skipped (%s)", exc)
         formats_json = None
+    is_demo = bool(state.get("is_demo")) or (state.get("draft_content") or "").startswith("[DEMO]")
     with session_scope() as db:
         row = create_content_queue_row(
             db,
@@ -181,9 +203,10 @@ def persist_node(state: MarketingState) -> dict:
             healed_content=state.get("healed_content"),
             audit_transcript=state.get("audit_transcript"),
             formats_json=formats_json,
+            is_demo=is_demo,
         )
         content_id = row.id
-    log.info("persist_node brand=%s content_id=%s", state["brand"], content_id)
+    log.info("persist_node brand=%s content_id=%s is_demo=%s", state["brand"], content_id, is_demo)
     return {"content_id": content_id, "status": ContentStatus.PENDING.value}
 
 

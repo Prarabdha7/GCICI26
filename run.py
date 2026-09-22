@@ -1,4 +1,4 @@
-"""Single-command startup: python run.py — DB + API + worker (mock-safe, zero-key)."""
+"""Single-command startup: python run.py — DB + API + worker."""
 
 from __future__ import annotations
 
@@ -15,8 +15,12 @@ def main() -> int:
     import uvicorn
 
     init_db()
-    print(f"JA Assure AI Marketing System — http://{settings.app_host}:{settings.app_port}/dashboard")
-    print("Zero-key demo mode: no GEMINI/BUFFER keys required (domain fallback + mock publisher).")
+    print(f"JA Assure AI Marketing System — http://{settings.app_host}:{settings.app_port}/app")
+    print(f"HTML dashboard (legacy): http://{settings.app_host}:{settings.app_port}/dashboard")
+    if settings.demo_mode:
+        print("DEMO_MODE=true: fallback/mock output enabled, all labeled DEMO (not real).")
+    else:
+        print("Real mode: add keys to .env for generation/publishing, or set DEMO_MODE=true for a labeled walkthrough.")
     uvicorn.run("app.main:app", host=settings.app_host, port=settings.app_port, reload=False)
     return 0
 

@@ -26,11 +26,15 @@ INTEL_JOB_ID = "intel_sweep"
 
 
 def _resolve_publisher():
-    """Strict keys first; mock dispatcher only when no keys are configured."""
+    """Strict keys first. The mock dispatcher is DEMO-ONLY (DEMO_MODE=true):
+    without keys in real mode it raises honestly instead of faking publishes."""
     try:
         return get_publisher()
     except PublisherError:
-        log.info("No social keys configured — using MockPublisher for zero-key demo")
+        if not settings.demo_mode:
+            log.error("No social keys configured in real mode — publish skipped honestly (set DEMO_MODE=true for a labeled demo)")
+            raise
+        log.warning("No social keys configured — labeled DEMO MockPublisher")
         return MockPublisher()
 
 
@@ -76,8 +80,10 @@ def publish_approved_content() -> int:
 def confirm_scheduled_as_published() -> int:
     """Analytics feedback loop: scheduled -> published with engagement snapshot.
 
-    Real providers confirm via POST /api/publish/webhook; this job handles the
-    mock/demo path by simulating impressions/clicks and stamping published_at.
+    Real providers confirm via POST /api/publish/webhook with REAL metrics.
+    The mock/demo path (external_post_id starting with 'mock-') only runs in
+    DEMO_MODE and is labeled provider='mock-demo'. Real scheduled rows are
+    left untouched until a real confirmation arrives — never fabricated.
     """
     confirmed = 0
     with session_scope() as db:
@@ -86,19 +92,22 @@ def confirm_scheduled_as_published() -> int:
         )
         for item in rows:
             content_id = item.id
+            is_mock = (item.external_post_id or "").startswith("mock-")
+            if not is_mock:
+                continue  # real rows wait for a real webhook confirmation
+            if not settings.demo_mode:
+                log.error("mock scheduled row %s in real mode — left untouched honestly", content_id)
+                continue
             metrics = simulate_engagement(item)
             item.status = ContentStatus.PUBLISHED.value
             item.published_at = dt.datetime.now(dt.timezone.utc)
             if not item.published_url and item.external_post_id:
-                if item.external_post_id.startswith("mock-"):
-                    item.published_url = f"https://mock.social/p/{item.external_post_id}"
-                else:
-                    item.published_url = f"https://buffer.com/p/{item.external_post_id}"
+                item.published_url = f"https://mock.social/p/{item.external_post_id}"
             db.commit()
-            log_event(db, content_id=content_id, event="published", provider="mock" if (item.external_post_id or "").startswith("mock-") else "buffer", external_post_id=item.external_post_id)
-            log_event(db, content_id=content_id, event="engagement", provider="analytics", external_post_id=item.external_post_id, payload=metrics)
+            log_event(db, content_id=content_id, event="published", provider="mock-demo", external_post_id=item.external_post_id)
+            log_event(db, content_id=content_id, event="engagement", provider="mock-demo", external_post_id=item.external_post_id, payload={**metrics, "demo": True})
             confirmed += 1
-            log.info("published content_id=%s metrics=%s", content_id, metrics)
+            log.info("published DEMO content_id=%s metrics=%s", content_id, metrics)
     return confirmed
 
 
