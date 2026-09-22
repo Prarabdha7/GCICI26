@@ -117,6 +117,24 @@ def test_ayrshare_publisher_returns_post_id(monkeypatch) -> None:
     assert post_id == "ayr-1"
 
 
+def test_ayrshare_publisher_hits_the_api_host_not_the_dashboard_host(monkeypatch) -> None:
+    """Regression guard: app.ayrshare.com is the web dashboard, not the API —
+    confirmed live (GET /api/user against api.ayrshare.com succeeds; the
+    dashboard host doesn't serve this endpoint)."""
+    captured = {}
+
+    def fake_post(url, **kw):
+        captured["url"] = url
+        return _fake_response({"postIds": [{"id": "ayr-1"}]})
+
+    monkeypatch.setattr(publisher_module.httpx, "post", fake_post)
+    item = ContentQueue(brand="Jade", platform="instagram", language="en", draft_content="hello")
+
+    publisher_module.AyrsharePublisher(api_key="key").publish(item)
+
+    assert captured["url"] == "https://api.ayrshare.com/api/post"
+
+
 def test_ayrshare_publisher_requires_api_key() -> None:
     item = ContentQueue(brand="Jade", platform="instagram", language="en", draft_content="hello")
     with pytest.raises(publisher_module.PublisherError):

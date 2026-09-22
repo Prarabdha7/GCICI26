@@ -80,7 +80,7 @@ class BufferPublisher(BasePublisher):
 class AyrsharePublisher(BasePublisher):
     """Ayrshare's /api/post endpoint."""
 
-    API_URL = "https://app.ayrshare.com/api/post"
+    API_URL = "https://api.ayrshare.com/api/post"
 
     def __init__(self, api_key: str | None = None) -> None:
         self.api_key = api_key if api_key is not None else settings.ayrshare_api_key

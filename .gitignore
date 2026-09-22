@@ -61,3 +61,6 @@ logs/
 
 # sandbox artefacts (stale git lock files that could not be unlinked)
 _to_delete/
+
+# --- hackathon problem statement (internal reference only, never shipped) ---
+JA-Assure-SRM-Hackathon.pdf
