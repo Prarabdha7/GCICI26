@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JA Assure — Marketing Console</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><strong>JA Assure</strong><span>Marketing Console</span></div>
+  <nav id="nav">
+    <button data-view="queue" class="active">Queue</button>
+    <button data-view="generate">Generate</button>
+    <button data-view="metrics">Metrics</button>
+    <button data-view="leads">Leads</button>
+  </nav>
+  <div id="health" class="health" title="Backend status">…</div>
+</header>
+<div id="banner" class="banner" hidden></div>
+<main id="view"></main>
+<script src="./app.js"></script>
+</body>
+</html>

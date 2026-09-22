@@ -82,8 +82,11 @@ def list_leads(
 
 @router.get("/stats", response_model=QueueStats)
 def stats(db: Session = Depends(get_db)) -> QueueStats:
+    # Real-only headline stats — demo rows excluded, never claimed as real.
     rows = db.execute(
-        select(ContentQueue.status, func.count(ContentQueue.id)).group_by(ContentQueue.status)
+        select(ContentQueue.status, func.count(ContentQueue.id))
+        .where(ContentQueue.is_demo.is_(False))
+        .group_by(ContentQueue.status)
     ).all()
     by_status = {status: count for status, count in rows}
 
@@ -152,12 +155,15 @@ def _lev(a: str, b: str) -> int:
 
 
 @router.get("/metrics/trend")
-def metrics_trend(db: Session = Depends(get_db), days: int = Query(default=14, ge=1, le=90)) -> list[dict]:
-    """Per-day learning curve: decisions, rejection rate, avg edit distance, avg retries."""
+def metrics_trend(db: Session = Depends(get_db), days: int = Query(default=14, ge=1, le=90), include_demo: bool = Query(default=False)) -> list[dict]:
+    """Per-day learning curve over REAL rows (demo excluded unless include_demo=true)."""
     import datetime as dt
 
     since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)
-    rows = list(db.scalars(select(ContentQueue).where(ContentQueue.created_at >= since).order_by(ContentQueue.created_at)))
+    stmt = select(ContentQueue).where(ContentQueue.created_at >= since)
+    if not include_demo:
+        stmt = stmt.where(ContentQueue.is_demo.is_(False))
+    rows = list(db.scalars(stmt.order_by(ContentQueue.created_at)))
     buckets: dict[str, list] = {}
     for r in rows:
         key = (r.created_at.date().isoformat() if r.created_at else "undated")

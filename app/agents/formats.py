@@ -1,7 +1,8 @@
 """Multi-format pack: one idea -> linkedin + thread + carousel + video script + A/B.
 
-Zero-key safe: LLM JSON when available, deterministic offline builder otherwise.
-No network, no crash — judges always see a full pack.
+LLM JSON when available; otherwise a deterministic offline builder that only
+reformats the ACTUAL draft (sentence splits) — never invents new claims.
+The synthetic focus-group panel is demo-only (DEMO_MODE=true) and labeled.
 """
 
 from __future__ import annotations
@@ -26,6 +27,8 @@ PACK_SCHEMA: dict = {
 
 
 def _offline_pack(draft: str, brand: str) -> dict:
+    from app.config import settings as _settings
+
     base = (draft or "").strip() or f"{brand} protection update. Terms apply."
     sentences = [s.strip() for s in base.replace("\n", " ").split(". ") if s.strip()][:6]
     while len(sentences) < 5:
@@ -41,28 +44,28 @@ def _offline_pack(draft: str, brand: str) -> dict:
         "video_script": f"Hook: {sentences[0][:120]} Body: {' '.join(sentences[1:3])[:300]} CTA: Talk to JA Assure. Terms apply.",
         "variant_a": f"{base[:500]} [A: heritage angle]",
         "variant_b": f"{base[:500]} [B: risk-control angle]",
-        "focus_group": focus_group_notes(base, brand),
+        "focus_group": focus_group_notes(base, brand) if _settings.demo_mode else [],
     }
 
 
 def focus_group_notes(draft: str, brand: str) -> list[str]:
-    """Synthetic pre-publication panel (offline checklist, zero-key safe)."""
+    """Synthetic pre-publication panel — DEMO ONLY, always labeled as personas."""
     b = (brand or "").lower()
     notes = []
     if "doctor" in b or "shield" in b:
-        notes.append("Dr. Kevin Lim (surgeon): avoid 'malpractice', say 'inquiry/defence'; keep peer tone.")
+        notes.append("[DEMO persona] Dr. Kevin Lim (surgeon): avoid 'malpractice', say 'inquiry/defence'; keep peer tone.")
     else:
-        notes.append("Dr. Kevin Lim: n/a for non-medical brand.")
+        notes.append("[DEMO persona] Dr. Kevin Lim: n/a for non-medical brand.")
     if "jade" in b:
-        notes.append("Madam Chen (goldsmith): demand memo-goods + discretion wording; no safe-grade details.")
+        notes.append("[DEMO persona] Madam Chen (goldsmith): demand memo-goods + discretion wording; no safe-grade details.")
     else:
-        notes.append("Madam Chen: discretion angle added.")
+        notes.append("[DEMO persona] Madam Chen: discretion angle added.")
     if "jaguar" in b or "transit" in b:
-        notes.append("Marcus Tan (freight): demand chain-of-custody + telematics terms.")
+        notes.append("[DEMO persona] Marcus Tan (freight): demand chain-of-custody + telematics terms.")
     else:
-        notes.append("Marcus Tan: transit terms n/a.")
+        notes.append("[DEMO persona] Marcus Tan: transit terms n/a.")
     if "guarantee" in (draft or "").lower():
-        notes.append("Panel flag: absolute guarantee language — must soften before human review.")
+        notes.append("[DEMO persona] Panel flag: absolute guarantee language — must soften before human review.")
     return notes
 
 

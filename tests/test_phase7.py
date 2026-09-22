@@ -136,7 +136,7 @@ def test_public_media_url_none_without_base_url(monkeypatch) -> None:
 def test_public_media_url_builds_from_base_and_filename(monkeypatch) -> None:
     monkeypatch.setattr(settings, "public_media_base_url", "https://cdn.test/media")
     item = ContentQueue(brand="Jade", platform="linkedin", language="en", draft_content="x", media_path="/tmp/reel.mp4")
-    assert publisher_module._public_media_url(item) == "https://cdn.test/media/reel.mp4"
+    assert publisher_module._public_media_url(item) == "https://cdn.test/media/static/reel.mp4"
 
 
 # --------------------------------------------------------------------------- #

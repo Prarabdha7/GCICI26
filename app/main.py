@@ -9,15 +9,29 @@ Serves the REST API and (from Phase 6) the human review dashboard.
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.api.dashboard import router as dashboard_router
+from app.api.actions import router as actions_router
 from app.api.routes import router as api_router
 from app.config import settings
 from app.db.database import init_db
+
+# AgentOps telemetry is opt-in and never runs under pytest: it makes a real
+# outbound network call. Only initialises with a valid AGENTOPS_API_KEY.
+agentops_key = os.getenv("AGENTOPS_API_KEY")
+is_testing = "pytest" in sys.modules or os.getenv("TESTING") == "true"
+if agentops_key and agentops_key not in ("", "your_key_here") and not is_testing:
+    try:
+        import agentops
+        agentops.init(api_key=agentops_key, default_tags=["ja-assure"])
+    except Exception:
+        pass
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
@@ -64,13 +78,21 @@ app = FastAPI(
 )
 
 # Serve generated reels/captions at /temp/* (mounted at import so TestClient sees it).
+# /static alias serves assets/generated/ for provider-facing media URLs.
+# /app serves the static frontend SPA (zero build step, same-origin API only).
 try:
     (settings.base_dir / "temp").mkdir(parents=True, exist_ok=True)
     app.mount("/temp", StaticFiles(directory=str(settings.base_dir / "temp")), name="temp")
+    settings.generated_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/static", StaticFiles(directory=str(settings.generated_dir)), name="static")
+    frontend_dir = settings.base_dir / "frontend"
+    if frontend_dir.is_dir():
+        app.mount("/app", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
 except Exception:
     pass
 
 app.include_router(api_router)
+app.include_router(actions_router)
 app.include_router(dashboard_router)
 
 

@@ -26,6 +26,7 @@ class ContentQueueOut(BaseModel):
     status: str
     compliance_errors: list[str] = Field(default_factory=list)
     retry_count: int
+    is_demo: bool = False
     feedback_reason: str | None = None
     external_post_id: str | None = None
     created_at: dt.datetime | None = None

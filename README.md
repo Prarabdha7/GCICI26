@@ -11,18 +11,32 @@ approves, edits or rejects — and **every rejection is stored and injected into
 next generation**, so the system stops repeating mistakes. Approved assets are
 published automatically by a background worker (mock-safe with no keys).
 
-> Status: **All phases complete (1-7)** — zero-key demo mode works out of the box.
+> Status: **All phases complete (1-7)** — real by default, labeled demo on demand.
 > See `PLAN.md` / `MASTER_ANALYSIS_AND_UPGRADE_PLAN.md` for the blueprint.
 
-## Quick start (zero-key, 1 command)
+## Quick start (real)
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-cp .env.example .env          # keys OPTIONAL — fallback + mock publisher cover demos
-python run.py                 # init_db + FastAPI + APScheduler worker
+cp .env.example .env          # add GEMINI_API_KEY + BUFFER/AYRSHARE keys for the real path
+python -m scripts.init_db
+python run.py                 # FastAPI + APScheduler worker
 ```
+
+## Real vs demo contract
+
+- **Default (`DEMO_MODE=false`) is real-only.** Unconfigured LLM / providers / publisher fail
+  honestly with a clear message — nothing is fabricated, stubbed, or counted.
+  `GET /api/stats` and `/api/metrics/trend` exclude demo rows; the worker never
+  confirms real `scheduled` rows without a real webhook (`POST /api/publish/webhook`).
+- **Demo (`DEMO_MODE=true`) is for walkthroughs without keys.** Fallback copy, mock
+  providers/publisher, stub reels, and `python -m scripts.seed_demo` engage — and every
+  output is labeled: `[DEMO]` copy prefix, `mock-` post IDs, `provider='mock-demo'`,
+  `is_demo=true` rows, DEMO badges in the dashboard. Demo rows never enter real metrics.
+- Simulated writes exist **only** to demonstrate how the pipeline works. They are never
+  used for, mixed into, or claimed as real results.
 
 - Dashboard: http://127.0.0.1:8000/dashboard (Generate Campaign, approve/edit/reject, video preview)
 - Metrics: http://127.0.0.1:8000/dashboard/metrics (rejection rate, edit distance, lessons)
@@ -31,10 +45,12 @@ python run.py                 # init_db + FastAPI + APScheduler worker
 
 ## Zero-failure design
 
-- No `GEMINI_API_KEY`? Domain fallback copy per brand + heuristic compliance gate.
-- No `TAVILY/SCRAPE/HUNTER` keys? Mock search/discovery/scraper with JA Assure intel.
-- No `BUFFER/AYRSHARE` keys? `MockPublisher` simulates `approved->scheduled->published` + engagement.
-- Video works with no footage: brand-tinted reel + Pillow caption card + edge-tts voiceover.
+- No `GEMINI_API_KEY` in real mode? Stages fail honestly instead of inventing copy.
+- No `TAVILY/SCRAPE/HUNTER` keys in real mode? Research/discovery report unconfigured.
+- No `BUFFER/AYRSHARE` keys in real mode? Rows stay `approved` until real keys/webhook arrive.
+- `DEMO_MODE=true` unlocks the labeled walkthrough path: `[DEMO]` fallback copy,
+  mock search/discovery, `MockPublisher` (`mock-` IDs), stub reels with SRT/JSON,
+  demo seed rows — all excluded from real metrics.
 
 ## Demo (3 min)
 

@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from app.agents.prompts import lead_scoring_system_prompt, lead_scoring_user_prompt
 from app.agents.providers import MockDiscoveryProvider, ProviderError, get_discovery_provider, get_hunter_contacts
+from app.config import settings
 from app.db.database import session_scope
 from app.db.models import Lead, LeadStatus
 from app.graph.state import LeadGenState
@@ -28,14 +29,15 @@ LEAD_SCORE_SCHEMA: dict[str, Any] = {
 
 def discovery_node(state: LeadGenState) -> dict:
     """Finds prospects in the target niche/market. Runs in parallel with research_node.
-    Zero-key safe: falls back to MockDiscoveryProvider."""
+    Real mode: provider failures propagate honestly. Demo mode: labeled mock data."""
     try:
         provider = get_discovery_provider()
-    except ProviderError:
-        provider = MockDiscoveryProvider()
-    try:
         discovered = provider.discover(niche=state["niche"], country=state["country"])
-    except ProviderError:
+    except ProviderError as exc:
+        if not settings.demo_mode:
+            log.error("discovery_node provider unavailable in real mode (%s)", exc)
+            raise
+        log.warning("discovery_node provider unavailable (%s) — labeled DEMO data", exc)
         discovered = MockDiscoveryProvider().discover(niche=state["niche"], country=state["country"])
     log.info("discovery_node niche=%s country=%s found=%s", state["niche"], state["country"], len(discovered))
     return {"discovered": discovered}
@@ -56,7 +58,7 @@ def enrichment_node(state: LeadGenState) -> dict:
 
 def scoring_outreach_node(state: LeadGenState) -> dict:
     """Scores each enriched prospect's fit and drafts a personalised outreach message.
-    Zero-key safe: heuristic score when the LLM judge is unavailable."""
+    Real mode: LLM failures propagate honestly. Demo mode: labeled heuristic score."""
     leads = []
     for prospect in state.get("enriched", []):
         system = lead_scoring_system_prompt(brand=state["brand"])
@@ -67,11 +69,14 @@ def scoring_outreach_node(state: LeadGenState) -> dict:
         )
         try:
             verdict = structured_call(system=system, user=user, schema=LEAD_SCORE_SCHEMA)
-        except LLMError:
+        except LLMError as exc:
+            if not settings.demo_mode:
+                log.error("scoring_outreach LLM unavailable in real mode (%s)", exc)
+                raise
             verdict = {
                 "fit_score": 72,
-                "score_rationale": f"Fallback fit for {state['brand']}: niche keyword match on {prospect.get('company_name', '')}.",
-                "outreach_draft": f"Hello {prospect.get('company_name', 'team')} — JA Assure {state['brand']} offers instant-bind, contract-certain cover for your segment. Terms apply.",
+                "score_rationale": f"[DEMO] Heuristic fit for {state['brand']}: niche keyword match on {prospect.get('company_name', '')}.",
+                "outreach_draft": f"[DEMO] Hello {prospect.get('company_name', 'team')} — JA Assure {state['brand']} offers instant-bind, contract-certain cover for your segment. Terms apply.",
             }
         leads.append({**prospect, **verdict})
     return {"leads": leads}

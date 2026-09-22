@@ -29,3 +29,29 @@ def _isolated_database():
     )
     yield
     engine.dispose()
+
+
+# Keys must never leak into tests from a developer's local .env: the suite
+# asserts fail-closed behavior with no keys, so every secret-bearing setting
+# is blanked (and demo_mode forced off) for each test. Tests that need a key
+# set it explicitly via monkeypatch.
+_SECRET_ATTRS = (
+    "gemini_api_key",
+    "openai_api_key",
+    "tavily_api_key",
+    "serper_api_key",
+    "scrapegraph_api_key",
+    "google_places_api_key",
+    "hunter_api_key",
+    "buffer_access_token",
+    "ayrshare_api_key",
+)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_keys(monkeypatch):
+    from app.config import settings
+
+    for attr in _SECRET_ATTRS:
+        monkeypatch.setattr(settings, attr, "")
+    monkeypatch.setattr(settings, "demo_mode", False)

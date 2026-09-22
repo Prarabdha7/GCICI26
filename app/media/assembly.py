@@ -229,9 +229,14 @@ def assemble_video(
         render_caption_card(script, brand=brand, output_path=output_dir / f"caption_{run_id}.png")
     except Exception:
         pass
-    # Encoder unavailable (moviepy broken/missing in this env): stub reel so the
-    # pipeline still delivers playable metadata + captions + SRT for the dashboard.
+    # Encoder unavailable (moviepy broken/missing in this env): in DEMO_MODE
+    # write a stub reel so the walkthrough still shows captions/SRT layout.
+    # Real mode returns honestly with no fake media file.
     if AudioFileClip is None or ColorClip is None:
+        from app.config import settings as _settings2
+
+        if not _settings2.demo_mode:
+            raise RuntimeError("video encoder unavailable in real mode — media skipped honestly")
         total_duration = max(3.0, len((script or "").split()) * 0.4)
         timings = estimate_timings(script, total_duration)
         captions = chunk_captions(timings)
@@ -240,7 +245,7 @@ def assemble_video(
 
             (output_dir / f"reel_{run_id}.json").write_text(_json.dumps({"captions": captions, "words": timings[:200]}), encoding="utf-8")
             (output_dir / f"reel_{run_id}.srt").write_text("\n".join(c["text"] for c in captions), encoding="utf-8")
-            video_path.write_bytes(b"stub mp4 - install moviepy 1.0.3 on py3.10 for real encoding")
+            video_path.write_bytes(b"DEMO stub mp4 - install moviepy 1.0.3 on py3.10 for real encoding")
         except Exception:
             pass
         return video_path

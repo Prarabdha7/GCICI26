@@ -28,11 +28,14 @@ class BasePublisher(ABC):
 
 
 def _public_media_url(item: ContentQueue) -> str | None:
-    """media_path is a local filesystem path; the posting API needs a URL it
-    can fetch. Without PUBLIC_MEDIA_BASE_URL configured, media is skipped."""
+    """media_path is a local filesystem path; the posting API needs an absolute
+    URL it can fetch. Files are served from the `/static` mount
+    (assets/generated/), so the public URL is PUBLIC_MEDIA_BASE_URL +
+    /static/ + filename. Without PUBLIC_MEDIA_BASE_URL configured, media is
+    skipped (text-only post) — never fabricated."""
     if not item.media_path or not settings.public_media_base_url:
         return None
-    return f"{settings.public_media_base_url.rstrip('/')}/{Path(item.media_path).name}"
+    return f"{settings.public_media_base_url.rstrip('/')}/static/{Path(item.media_path).name}"
 
 
 class BufferPublisher(BasePublisher):
@@ -109,10 +112,11 @@ def get_publisher() -> BasePublisher:
 
 
 class MockPublisher(BasePublisher):
-    """Zero-key autonomous dispatcher — simulates Buffer/Ayrshare for demos.
+    """DEMO-ONLY dispatcher — simulates Buffer/Ayrshare for walkthroughs.
 
-    Never touches the network. Returns deterministic mock- post IDs so the
-    approved -> scheduled -> published lifecycle can be demoed with no keys.
+    Never touches the network. Returns deterministic mock- post IDs.
+    Only used when DEMO_MODE=true; rows it touches are demo rows and must
+    never be presented as real publishes.
     """
 
     def publish(self, item: ContentQueue) -> str:
@@ -148,7 +152,8 @@ def publish_with_retry(publisher: BasePublisher, item: ContentQueue, *, attempts
 
 
 def simulate_engagement(item: ContentQueue) -> dict:
-    """Deterministic pseudo-analytics so the feedback loop has data with no keys."""
+    """DEMO-ONLY pseudo-analytics for mock-demo rows. Never real data —
+    callers must label provider='mock-demo' and payload demo=True."""
     seed = abs(hash(f"{item.id}:{item.brand}:{item.platform}")) % 1000
     impressions = 800 + (seed * 7) % 4200
     ctr = 0.018 + (seed % 40) / 1000.0

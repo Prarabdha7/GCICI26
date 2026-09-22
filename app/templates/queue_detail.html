@@ -5,6 +5,7 @@
 <h2>{{ item.brand }} — {{ item.platform }} ({{ item.language }})</h2>
 <p>
     <span class="badge badge-{{ item.status }}">{{ item.status }}</span>
+    {% if item.is_demo %}<span class="badge" style="background:#fef3c7;color:#92400e;">DEMO — simulated, not real</span>{% endif %}
     &middot; retries: {{ item.retry_count }}
     {% if item.topic %}&middot; topic: {{ item.topic }}{% endif %}
     {% if item.variant_label %}&middot; variant {{ item.variant_label }}{% endif %}

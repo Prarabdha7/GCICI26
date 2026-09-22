@@ -34,5 +34,7 @@ fetch("/api/metrics/trend?days=14").then(r => r.json()).then(rows => {
 <ul>
     {% for f in lessons %}<li><strong>{{ f.brand }}/{{ f.platform }} [{{ f.error_tag }}]</strong>: {{ f.human_note }}</li>{% else %}<li><em>No feedback yet — reject or edit an asset to teach the system.</em></li>{% endfor %}
 </ul>
+{% if demo_count %}<p><strong>Demo rows excluded from real metrics: {{ demo_count }}</strong> (labeled simulations only — never counted as real).</p>{% endif %}
+{% if demo_mode %}<p><em>DEMO_MODE is on: new fallback/mock output will be labeled DEMO.</em></p>{% endif %}
 <p><em>Proof of learning: rejection rate should fall and avg edit distance should shrink as feedback accumulates.</em></p>
 {% endblock %}
