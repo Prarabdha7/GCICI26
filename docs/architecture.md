@@ -42,9 +42,14 @@ avoids a second live research call per retry).
 **Image vs. video routing:** `video_assembly_node` renders a reel for
 `tiktok`, or any platform when `content_type=="video"` — internally,
 `assemble_video()` (`app/media/assembly.py`) tries Veo first (real
-generative video via the Gemini API, `app/llm/client.py::video_call`) and
-falls back to script → `edge-tts` voiceover → `moviepy` assembly on any
-failure (no key, no quota, timeout). `image_generation_node` renders a
+generative video via the Gemini API, `app/llm/client.py::video_call`,
+currently 429/limit=0 on this key's free tier, same as image generation).
+On failure it fetches a real Pexels stock clip keyed off the script
+(`app/media/stock_video.py::extract_keyword` + `fetch_stock_video`) and
+uses it as the moviepy background; only if Pexels is also unavailable (no
+`PEXELS_API_KEY`, no results) does a brand-tinted `ColorClip` stand in —
+three tiers, each a real fallback for the one before it, never a
+fabrication. `image_generation_node` renders a
 single on-brand hero image via `image_call()` (`app/llm/client.py`), which
 tries Gemini's native image-output models first and falls back to
 Pollinations' free keyless API on any failure — confirmed live that
