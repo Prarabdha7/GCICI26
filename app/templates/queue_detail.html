@@ -2,11 +2,13 @@
 {% block title %}{{ item.brand }} — Review{% endblock %}
 {% block content %}
 <p><a href="/dashboard">&larr; Back to queue</a></p>
-<h2>{{ item.brand }} — {{ item.platform }} ({{ item.language }})</h2>
-<p>
-    <span class="badge badge-{{ item.status }}">{{ item.status }}</span>
-    &middot; retries: {{ item.retry_count }}
-</p>
+<hgroup>
+    <h2>{{ item.brand }} <small>— {{ item.platform }} ({{ item.language }})</small></h2>
+    <p>
+        <span class="badge badge-{{ item.status }}">{{ item.status }}</span>
+        &middot; retries: {{ item.retry_count }}
+    </p>
+</hgroup>
 
 <article>
     <h3>Draft</h3>
@@ -41,13 +43,14 @@
 </article>
 {% endif %}
 
-<div id="detail-actions">
+<article id="detail-actions">
+    <h3>Decision</h3>
     <form hx-post="/dashboard/queue/{{ item.id }}/approve" hx-target="#detail-actions" hx-swap="none">
-        <button type="submit">Approve</button>
+        <button type="submit">✓ Approve</button>
     </form>
 
     <details>
-        <summary>Reject</summary>
+        <summary style="color: var(--brand-danger);">✕ Reject</summary>
         <form hx-post="/dashboard/queue/{{ item.id }}/reject" hx-target="#detail-actions" hx-swap="none">
             <label>Reason
                 <select name="error_tag" required>
@@ -55,12 +58,12 @@
                 </select>
             </label>
             <label>Note<textarea name="human_note" required placeholder="What was wrong, specifically?"></textarea></label>
-            <button type="submit" class="secondary">Reject</button>
+            <button type="submit" class="btn-danger">Reject</button>
         </form>
     </details>
 
     <details>
-        <summary>Edit &amp; approve</summary>
+        <summary>✎ Edit &amp; approve</summary>
         <form hx-post="/dashboard/queue/{{ item.id }}/edit" hx-target="#detail-actions" hx-swap="none">
             <label>Final content
                 <textarea name="final_content" required rows="6">{{ item.final_content or item.draft_content }}</textarea>
@@ -74,5 +77,5 @@
             <button type="submit" class="contrast">Save &amp; approve</button>
         </form>
     </details>
-</div>
+</article>
 {% endblock %}

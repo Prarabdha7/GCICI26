@@ -1,22 +1,24 @@
 {% extends "base.html" %}
 {% block title %}Manual Intervention — JA Assure Review{% endblock %}
 {% block content %}
-<h2>Manual Intervention Queue ({{ items|length }})</h2>
-<p>Drafts that tripped the compliance circuit breaker (retry_count &gt; {{ max_retries }}).</p>
+<hgroup>
+    <h2>Manual Intervention Queue <small>({{ items|length }})</small></h2>
+    <p>Drafts that tripped the compliance circuit breaker (retry_count &gt; {{ max_retries }}).</p>
+</hgroup>
 <table>
     <thead>
-        <tr><th>Brand</th><th>Platform</th><th>Language</th><th>Draft</th><th>Retries</th><th>Violations</th><th></th></tr>
+        <tr><th>Brand</th><th>Platform</th><th>Language</th><th>Draft</th><th>Retries</th><th>Violations</th><th style="width: 1%;"></th></tr>
     </thead>
     <tbody>
         {% for item in items %}
         <tr>
-            <td>{{ item.brand }}</td>
+            <td><strong>{{ item.brand }}</strong></td>
             <td>{{ item.platform }}</td>
             <td>{{ item.language }}</td>
             <td>{{ item.draft_content[:80] }}{% if item.draft_content|length > 80 %}…{% endif %}</td>
             <td>{{ item.retry_count }}</td>
-            <td>{{ item.compliance_errors|length }}</td>
-            <td><a href="/dashboard/queue/{{ item.id }}" role="button" class="secondary">Review</a></td>
+            <td><span class="badge badge-manual_intervention">{{ item.compliance_errors|length }}</span></td>
+            <td><a href="/dashboard/queue/{{ item.id }}" role="button" class="secondary" style="white-space: nowrap;">Review</a></td>
         </tr>
         {% else %}
         <tr><td colspan="7"><em>No manual-intervention items.</em></td></tr>
