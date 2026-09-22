@@ -49,7 +49,6 @@ class Settings(BaseSettings):
     feedback_memory_limit: int = 5
 
     # --- research / scraping (Phase 5) ---
-    tavily_api_key: str = ""
     serper_api_key: str = ""
     scrapegraph_api_key: str = ""
     google_places_api_key: str = ""
