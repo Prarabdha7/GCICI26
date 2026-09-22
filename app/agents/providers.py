@@ -31,30 +31,6 @@ class BaseDiscoveryProvider(ABC):
         """Returns prospects shaped as {"company_name", "website"}."""
 
 
-class TavilySearch(BaseSearchProvider):
-    """Active default search provider."""
-
-    API_URL = "https://api.tavily.com/search"
-
-    def __init__(self, api_key: str | None = None) -> None:
-        self.api_key = api_key if api_key is not None else settings.tavily_api_key
-
-    def search(self, query: str, *, max_results: int = 5) -> list[dict[str, Any]]:
-        if not self.api_key:
-            raise ProviderError("TAVILY_API_KEY is not set.")
-        response = httpx.post(
-            self.API_URL,
-            json={"api_key": self.api_key, "query": query, "max_results": max_results},
-            timeout=30.0,
-        )
-        response.raise_for_status()
-        results = response.json().get("results", [])
-        return [
-            {"title": r.get("title", ""), "url": r.get("url", ""), "snippet": r.get("content", "")}
-            for r in results
-        ]
-
-
 class SerperSearch(BaseSearchProvider):
     """Stub provider, ready for activation once SERPER_API_KEY is set."""
 
@@ -78,17 +54,6 @@ class SerperSearch(BaseSearchProvider):
             {"title": r.get("title", ""), "url": r.get("link", ""), "snippet": r.get("snippet", "")}
             for r in results[:max_results]
         ]
-
-
-class TavilyDiscovery(BaseDiscoveryProvider):
-    """Active default: finds niche prospects via the search provider."""
-
-    def __init__(self, search_provider: BaseSearchProvider | None = None) -> None:
-        self.search_provider = search_provider or TavilySearch()
-
-    def discover(self, *, niche: str, country: str, max_results: int = 10) -> list[dict[str, Any]]:
-        results = self.search_provider.search(f"{niche} companies in {country}", max_results=max_results)
-        return [{"company_name": r["title"], "website": r["url"]} for r in results if r.get("url")]
 
 
 class GooglePlacesDiscovery(BaseDiscoveryProvider):
@@ -137,19 +102,15 @@ class ScrapeGraphClient:
 
 
 def get_search_provider() -> BaseSearchProvider:
-    if settings.tavily_api_key:
-        return TavilySearch()
     if settings.serper_api_key:
         return SerperSearch()
-    raise ProviderError("No search provider configured: set TAVILY_API_KEY or SERPER_API_KEY.")
+    raise ProviderError("No search provider configured: set SERPER_API_KEY.")
 
 
 def get_discovery_provider() -> BaseDiscoveryProvider:
-    if settings.tavily_api_key:
-        return TavilyDiscovery()
     if settings.google_places_api_key:
         return GooglePlacesDiscovery()
-    raise ProviderError("No discovery provider configured: set TAVILY_API_KEY or GOOGLE_PLACES_API_KEY.")
+    raise ProviderError("No discovery provider configured: set GOOGLE_PLACES_API_KEY.")
 
 
 def get_hunter_contacts(domain: str, *, api_key: str | None = None) -> list[dict[str, Any]]:

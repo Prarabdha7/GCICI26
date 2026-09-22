@@ -1,12 +1,13 @@
 """Graph assembly: wires the nodes and the compliance retry cycle together.
 
-    START -> memory -> content -> localization -+-> video -> compliance -> route
-                                       ^        |                          |  |  |
-                                       |________ non-compliant ____________|  |  |
-                                                (retry_count <= max)          v  v
-                                                                          persist manual
-memory_retrieval runs once, before the first draft — not on retry cycles, which
-loop straight back to content_node. Video runs only for reels/tiktok.
+    START -> memory -> market_research -> content -> localization -+-> video -> compliance -> route
+                                                          ^        |                          |  |  |
+                                                          |________ non-compliant ____________|  |  |
+                                                                   (retry_count <= max)          v  v
+                                                                                              persist manual
+memory_retrieval and market_research_node each run once, before the first
+draft — not on retry cycles, which loop straight back to content_node.
+Video runs only for reels/tiktok.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from app.graph.nodes import (
     content_node,
     localization_node,
     manual_intervention_node,
+    market_research_node,
     memory_retrieval_node,
     persist_node,
     video_assembly_node,
@@ -44,6 +46,7 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None) -> CompiledStat
     graph = StateGraph(MarketingState)
 
     graph.add_node("memory_retrieval", memory_retrieval_node)
+    graph.add_node("market_research", market_research_node)
     graph.add_node("content", content_node)
     graph.add_node("localization", localization_node)
     graph.add_node("video", video_assembly_node)
@@ -52,7 +55,8 @@ def build_graph(checkpointer: BaseCheckpointSaver | None = None) -> CompiledStat
     graph.add_node("manual_intervention", manual_intervention_node)
 
     graph.add_edge(START, "memory_retrieval")
-    graph.add_edge("memory_retrieval", "content")
+    graph.add_edge("memory_retrieval", "market_research")
+    graph.add_edge("market_research", "content")
     graph.add_edge("content", "localization")
     graph.add_conditional_edges(
         "localization",

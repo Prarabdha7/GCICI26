@@ -36,11 +36,17 @@ def content_system_prompt(*, brand: str, platform: str, feedback_guidance: str =
 
 
 def content_user_prompt(
-    *, brand: str, platform: str, topic: str = "", compliance_errors: list[str] | None = None
+    *, brand: str, platform: str, topic: str = "", market_research: str = "",
+    compliance_errors: list[str] | None = None,
 ) -> str:
     base = f"Write a marketing post for {brand} on {platform}."
     if topic:
         base += f" Topic/focus: {topic}."
+    if market_research:
+        base += (
+            "\n\nGround this post in the following live market research "
+            f"(recent news, competitor activity — reference it naturally, don't quote it verbatim):\n{market_research}"
+        )
     if compliance_errors:
         joined = "\n".join(f"- {err}" for err in compliance_errors)
         base += (

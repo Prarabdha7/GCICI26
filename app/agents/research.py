@@ -2,41 +2,29 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from app.agents.prompts import research_system_prompt, research_user_prompt
-from app.agents.providers import MockSearchProvider, ProviderError, ScrapeGraphClient, get_search_provider
+from app.agents.providers import MockSearchProvider
 from app.graph.state import LeadGenState
 from app.llm.client import LLMError, text_call
+from app.utils.research import research_summary
 
 log = logging.getLogger(__name__)
 
 
 def research_node(state: LeadGenState) -> dict:
-    """Searches for competitor activity, scrapes the top hits, and asks the
-    LLM for a structured digest. Runs in parallel with discovery_node.
-    Zero-key safe: falls back to MockSearchProvider + domain digest."""
-    try:
-        provider = get_search_provider()
-    except ProviderError:
-        provider = MockSearchProvider()
-    try:
-        results = provider.search(f"{state['niche']} insurance competitors {state['country']}")
-    except ProviderError:
-        results = MockSearchProvider().search(f"{state['niche']} {state['country']}")
+    """Searches DuckDuckGo and scrapes the top hits with Crawl4AI for live
+    competitor/market context, then asks the LLM for a structured digest.
+    Runs in parallel with discovery_node. Zero-key safe: falls back to a
+    deterministic mock digest if the live search returns nothing."""
+    query = f"{state['niche']} insurance competitors {state['country']}"
+    context = asyncio.run(research_summary(query))
+    if not context:
+        log.warning("research_node: no live results for %r — using mock digest", query)
+        context = "\n".join(r.get("snippet", "") for r in MockSearchProvider().search(query))
 
-    excerpts = []
-    scraper = ScrapeGraphClient()
-    for result in results[:3]:
-        url = result.get("url")
-        if not url:
-            continue
-        try:
-            excerpts.append(scraper.extract_markdown(url))
-        except Exception:
-            excerpts.append(result.get("snippet", ""))
-
-    context = "\n\n---\n\n".join(excerpts) or "\n".join(r.get("snippet", "") for r in results)
     system = research_system_prompt(brand=state["brand"])
     user = research_user_prompt(niche=state["niche"], country=state["country"], context=context)
     try:
