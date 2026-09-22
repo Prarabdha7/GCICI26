@@ -74,7 +74,7 @@ async function renderDetail(id) {
       api(`/api/queue/${id}/feedback`).catch(() => []),
     ]);
   } catch (e) { showBanner("Item unavailable honestly: " + e.message, "err"); return; }
-  const m = extra.media || {}, pack = extra.formats || {};
+  const m = extra.media || {}, pack = extra.formats || {}, imageUrls = extra.image_urls || [];
   view.innerHTML = `
     <span class="back" id="back">← Back to queue</span>
     <h2>${esc(item.brand)} — ${esc(item.platform)} ${badge(item.status, item.is_demo)}</h2>
@@ -93,6 +93,8 @@ async function renderDetail(id) {
         <p class="mut"><a href="${esc(m.video_url)}">MP4</a> · <a href="${esc(m.srt_url)}">SRT</a> · <a href="${esc(m.json_url)}">captions JSON</a></p>
         ${extra.captions.length ? `<ol class="compact">${extra.captions.map(c => `<li>${esc(c.text)} <span class="mut">(${(+c.start).toFixed(1)}s)</span></li>`).join("")}</ol>` : ""}</div>`
         : item.media_path ? `<div class="card"><h3>Media</h3><p class="mut">${esc(item.media_path)} (not servable from this host)</p></div>` : ""}
+      ${imageUrls.length ? `<div class="card"><h3>${pack.carousel ? "Carousel images" : "Image"}</h3>
+        <div class="image-gallery">${imageUrls.map((u, i) => `<img src="${esc(u)}" alt="Generated image ${i + 1}">`).join("")}</div></div>` : ""}
       ${pack.thread ? `<div class="card"><h3>Multi-format pack</h3>
         <h4>Thread</h4><ol class="compact">${pack.thread.map(t => `<li>${esc(t)}</li>`).join("")}</ol>
         <h4>Carousel</h4><ol class="compact">${pack.carousel.map(s => `<li>${esc(s)}</li>`).join("")}</ol>

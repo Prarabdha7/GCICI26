@@ -116,6 +116,7 @@ class ContentQueue(Base):
     draft_content: Mapped[str] = mapped_column(Text)
     final_content: Mapped[str | None] = mapped_column(Text, default=None)  # after human edit
     media_path: Mapped[str | None] = mapped_column(String(512), default=None)
+    image_paths: Mapped[list[str] | None] = mapped_column(JSON, default=None)  # one hero shot, or one per carousel slide
     healed_content: Mapped[str | None] = mapped_column(Text, default=None)
     audit_transcript: Mapped[str | None] = mapped_column(Text, default=None)
     formats_json: Mapped[str | None] = mapped_column(Text, default=None)  # multi-format pack

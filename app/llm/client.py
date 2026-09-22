@@ -68,6 +68,19 @@ def text_call(
     raise LLMError(f"Unknown LLM_PROVIDER: {name!r}")
 
 
+def image_call(
+    *,
+    prompt: str,
+    provider: str | None = None,
+) -> bytes:
+    """Generates a single image from a text prompt. Returns raw image bytes
+    (PNG). Used by app.media.image_gen for Instagram-visual posts/carousels."""
+    name = _resolve(provider)
+    if name == "gemini":
+        return _gemini_image(prompt=prompt)
+    raise LLMError(f"Image generation not supported for LLM_PROVIDER: {name!r}")
+
+
 def structured_call(
     *,
     system: str,
@@ -129,6 +142,32 @@ def _gemini(*, system: str, user: str, temperature: float, schema: dict[str, Any
     if not text:
         raise LLMError("Gemini returned an empty response.")
     return text
+
+
+def _gemini_image(*, prompt: str) -> bytes:
+    if not settings.gemini_api_key:
+        raise LLMError("GEMINI_API_KEY is not set. Copy .env.example to .env and fill it in.")
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError as exc:  # pragma: no cover
+        raise LLMError("google-genai is not installed. pip install -r requirements.txt") from exc
+
+    client = genai.Client(api_key=settings.gemini_api_key)
+    try:
+        response = client.models.generate_images(
+            model=settings.gemini_image_model,
+            prompt=prompt,
+            config=types.GenerateImagesConfig(number_of_images=1),
+        )
+    except Exception as exc:  # pragma: no cover - network path
+        raise LLMError(f"Gemini image call failed: {exc}") from exc
+
+    generated = getattr(response, "generated_images", None) or []
+    image_bytes = generated[0].image.image_bytes if generated and generated[0].image else None
+    if not image_bytes:
+        raise LLMError("Gemini returned no image data.")
+    return image_bytes
 
 
 def _openai(*, system: str, user: str, temperature: float, schema: dict[str, Any] | None) -> str:

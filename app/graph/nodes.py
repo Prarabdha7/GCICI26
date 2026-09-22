@@ -19,6 +19,7 @@ from app.integrations.memgpt import augment_guidance_with_memgpt
 from app.llm.client import COMPLIANCE_SCHEMA, LLMError, structured_call, text_call
 from app.llm.fallback import fallback_content, fallback_localize, heuristic_compliance_check, self_healing_fix
 from app.media.assembly import assemble_video
+from app.media.image_gen import generate_image
 from app.memory.retrieval import format_guidance, get_recent_feedback
 from app.utils.research import research_summary
 
@@ -183,6 +184,25 @@ def compliance_gate_node(state: MarketingState) -> dict:
     return {"compliance_errors": violations, "retry_count": retry_count, "audit_transcript": transcript, "healed_content": healed}
 
 
+def _carousel_image_paths(brand: str, slides: list[str]) -> list[str]:
+    """One image per carousel slide, best-effort. A single slide's failure
+    (rate limit, no key) never drops the slides that already succeeded."""
+    paths: list[str] = []
+    for slide in slides:
+        try:
+            image_path = generate_image(_image_prompt(brand, slide))
+            media = str(image_path)
+            try:
+                base = settings.base_dir.resolve()
+                media = image_path.resolve().relative_to(base).as_posix()
+            except Exception:
+                pass
+            paths.append(media)
+        except Exception as exc:
+            log.warning("carousel slide image skipped (%s)", exc)
+    return paths
+
+
 def persist_node(state: MarketingState) -> dict:
     """Writes the compliant draft to content_queue with status=pending.
     Also builds the multi-format pack (thread/carousel/A-B/focus group) best-effort."""
@@ -193,7 +213,14 @@ def persist_node(state: MarketingState) -> dict:
         formats_json = pack_to_json(pack)
     except Exception as exc:
         log.warning("format pack skipped (%s)", exc)
+        pack = None
         formats_json = None
+
+    image_paths = list(state.get("image_paths") or [])
+    content_type = (state.get("content_type") or "post").lower()
+    if content_type == "carousel" and pack and pack.get("carousel"):
+        image_paths = _carousel_image_paths(state["brand"], pack["carousel"])
+
     is_demo = bool(state.get("is_demo")) or (state.get("draft_content") or "").startswith("[DEMO]")
     with session_scope() as db:
         row = create_content_queue_row(
@@ -203,6 +230,7 @@ def persist_node(state: MarketingState) -> dict:
             language=state["language"],
             draft_content=state["draft_content"],
             media_path=state.get("media_path"),
+            image_paths=image_paths or None,
             compliance_errors=state.get("compliance_errors", []),
             retry_count=state.get("retry_count", 0),
             topic=state.get("topic"),
@@ -241,6 +269,42 @@ def video_assembly_node(state: MarketingState) -> dict:
         return {}
     log.info("video_assembly_node brand=%s media_path=%s", state["brand"], media)
     return {"media_path": media}
+
+
+def _image_prompt(brand: str, draft: str) -> str:
+    from app.agents.brand_knowledge import get_brand
+
+    info = get_brand(brand)
+    colors = info.get("colors", {})
+    return (
+        f"A professional marketing image for {info['name']} ({info['niche']}). "
+        f"Brand voice: {info['voice']}. Palette: {colors.get('primary', '')} and "
+        f"{colors.get('secondary', '')}. Subject: {draft[:200]}. "
+        "No text overlay, no logos, photorealistic or tasteful editorial "
+        "illustration suitable for an Instagram post."
+    )
+
+
+def image_generation_node(state: MarketingState) -> dict:
+    """Renders one on-brand hero image for visual (Instagram post) assets.
+    Never crashes the graph: on generation failure returns no image_paths so
+    text can still persist + gate (same contract as video_assembly_node).
+    Carousel slide images are handled separately in persist_node, once the
+    format pack (and its per-slide texts) exists."""
+    try:
+        image_path = generate_image(_image_prompt(state.get("brand", "Jade"), state["draft_content"]))
+        media = str(image_path)
+        try:
+            base = settings.base_dir.resolve()
+            rel = image_path.resolve().relative_to(base)
+            media = rel.as_posix()
+        except Exception:
+            pass
+    except Exception as exc:
+        log.warning("image_generation_node skipped (%s)", exc)
+        return {}
+    log.info("image_generation_node brand=%s image_path=%s", state["brand"], media)
+    return {"image_paths": [media]}
 
 
 def manual_intervention_node(state: MarketingState) -> dict:

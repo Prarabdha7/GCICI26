@@ -47,6 +47,10 @@ and [`docs/demo_runbook.md`](docs/demo_runbook.md).
   all tagged `[DEMO]` / `mock-` / `is_demo` and excluded from real metrics.
 - **Zero-cost media pipeline.** Voiceover via `edge-tts`, assembly via
   `moviepy` — no paid video API.
+- **Live image generation.** Instagram posts get a real, on-brand hero image
+  from Gemini/Imagen (`app/media/image_gen.py`); carousels get one image per
+  slide, generated after the multi-format pack exists. Same no-fabrication
+  contract as everything else: a failure is skipped, never faked.
 - **Optional execution notebook.** When enabled, every run is exported to an
   Obsidian vault (`JA-Assure-Runs/`) and can include an Excalidraw flow file.
 
@@ -61,6 +65,7 @@ and [`docs/demo_runbook.md`](docs/demo_runbook.md).
 | Review UI | FastAPI + Jinja2 + HTMX + PicoCSS, no build step — plus a static SPA at `/app` on the JSON actions API |
 | Voiceover | `edge-tts` — free, multilingual |
 | Video | `moviepy` (pinned `<2.0`) + `ffmpeg` |
+| Image generation | Gemini/Imagen (`google-genai`, same key as the LLM) |
 | Research | DuckDuckGo + Crawl4AI (keyless, live) |
 | Discovery / enrichment | Google Places, Hunter.io — swappable, keyed |
 | Scheduler | APScheduler (embedded in API, or standalone `python -m worker.scheduler`) |
@@ -142,6 +147,7 @@ keys blanked and live research auto-mocked — they never touch your local
 | Brand voices, colors, jurisdictions | `app/agents/brand_knowledge.py` |
 | Multi-format pack (thread/carousel/A-B/video script) | `app/agents/formats.py` |
 | Zero-cost video assembly | `app/media/assembly.py` |
+| Live image generation (hero shots + per-slide carousel images) | `app/media/image_gen.py`, `app/graph/nodes.py` |
 | Discovery / enrichment (swappable providers) | `app/agents/providers.py`, `app/agents/leads.py` |
 | Human review dashboard + JSON actions API + static console | `app/api/`, `app/templates/`, `frontend/` |
 | Auto-publisher, incl. labeled mock dispatcher + analytics (Project 2) | `worker/` |
