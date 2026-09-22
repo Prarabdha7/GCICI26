@@ -1,18 +1,32 @@
-"""Graph assembly: wires the nodes and the compliance retry cycle together.
+"""LangGraph Marketing State Machine Construction and Compilation.
 
-    START -> memory -> market_research -> content -> localization -+-> video -> compliance -> route
-                                                          |         |                          |  |  |
-                                                          +-> image-+                          |  |  |
-                                                          ^__________ non-compliant ___________|  |  |
-                                                                   (retry_count <= max)          v  v
-                                                                                              persist manual
-memory_retrieval and market_research_node each run once, before the first
-draft — not on retry cycles, which loop straight back to content_node.
-Video runs for tiktok, or any platform with content_type=="video". Image
-runs for instagram posts (a single on-brand hero shot). Carousel slide
-images are a special case: the format pack (and its slide texts) doesn't
-exist until persist_node, so those are generated there, per slide, not by
-this routed "image" node.
+This module wires together individual workflow nodes, directed edges, and conditional
+branching logic to create the compiled LangGraph execution graph for multi-agent marketing.
+
+Graph Execution Topology:
+    START
+      │
+      ▼
+    memory_retrieval (Tier 2/3 context injection)
+      │
+      ▼
+    market_research (Live Crawl4AI competitor scraping)
+      │
+      ▼
+    content (DSPy / Persona creative synthesis) <────────────┐ (Retry on failure)
+      │                                                       │
+      ▼                                                       │
+    localization (Regional linguistic adaptation)             │
+      │                                                       │
+      ├───[video required]──────> video                       │
+      ├───[image required]──────> image                       │
+      └───[text only]───────────┐                             │
+                                ▼                             │
+                         compliance_gate (MAS Notice 318)     │
+                                │                             │
+                                ├───[Non-compliant (retry)]───┘
+                                ├───[Exceeded retries]────────> manual_intervention ──> END
+                                └───[Compliant]───────────────> persist ─────────────> END
 """
 
 from __future__ import annotations
@@ -41,6 +55,14 @@ IMAGE_PLATFORMS = {"instagram"}
 
 
 def route_after_localization(state: MarketingState) -> str:
+    """Determine whether media synthesis is required prior to compliance evaluation.
+
+    Args:
+        state: Current marketing workflow state.
+
+    Returns:
+        str: Route destination ('video', 'image', or 'compliance_gate').
+    """
     platform = (state.get("platform") or "").lower()
     raw_ct = state.get("content_type")
     ct = raw_ct.lower() if isinstance(raw_ct, str) else ""
@@ -52,6 +74,14 @@ def route_after_localization(state: MarketingState) -> str:
 
 
 def build_graph(checkpointer: BaseCheckpointSaver | None = None) -> CompiledStateGraph:
+    """Construct and compile the state graph for the multi-agent marketing pipeline.
+
+    Args:
+        checkpointer: Optional persistence checkpointer (defaults to in-memory MemorySaver).
+
+    Returns:
+        CompiledStateGraph: The compiled, runnable LangGraph state machine.
+    """
     graph = StateGraph(MarketingState)
 
     graph.add_node("memory_retrieval", memory_retrieval_node)

@@ -13,9 +13,9 @@ the ColorClip, exactly like every other swappable provider in this repo
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 import re
 import uuid
-from pathlib import Path
 
 import httpx
 

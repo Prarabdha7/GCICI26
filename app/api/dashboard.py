@@ -235,7 +235,7 @@ def queue_detail(content_id: int, request: Request, db: Session = Depends(get_db
 def approve(content_id: int, request: Request, db: Session = Depends(get_db)) -> Response:
     item = _get_item_or_404(content_id, db)
     item.status = ContentStatus.APPROVED.value
-    item.reviewed_at = dt.datetime.now(dt.timezone.utc)
+    item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
     return _action_response(request)
 
@@ -253,7 +253,7 @@ def reject(
     item = _get_item_or_404(content_id, db)
     item.status = ContentStatus.REJECTED.value
     item.feedback_reason = human_note
-    item.reviewed_at = dt.datetime.now(dt.timezone.utc)
+    item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
     create_feedback_entry(
         db, brand=item.brand, platform=item.platform,
@@ -275,7 +275,7 @@ def edit(
     item.final_content = final_content
     item.status = ContentStatus.APPROVED.value
     item.feedback_reason = human_note
-    item.reviewed_at = dt.datetime.now(dt.timezone.utc)
+    item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
     create_feedback_entry(
         db, brand=item.brand, platform=item.platform,
@@ -315,8 +315,8 @@ def generate_campaign(
     (DEMO_MODE=true): produces rows explicitly labeled DEMO."""
     import uuid
 
-    from app.graph.graph import build_graph
     from app.db.database import session_scope as _scope
+    from app.graph.graph import build_graph
 
     initial_state = {
         "draft_content": "",
@@ -377,7 +377,7 @@ def accept_fix(content_id: int, request: Request, db: Session = Depends(get_db))
     item.final_content = fixed
     item.healed_content = item.healed_content or fixed
     item.status = ContentStatus.APPROVED.value
-    item.reviewed_at = dt.datetime.now(dt.timezone.utc)
+    item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
     create_feedback_entry(
         db, brand=item.brand, platform=item.platform,

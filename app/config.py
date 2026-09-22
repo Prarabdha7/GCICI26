@@ -1,7 +1,16 @@
-"""Environment-driven settings.
+"""Configuration and Environment Settings Module.
 
-Every secret, URL and tuning knob lives here and is read from the environment.
-Nothing in this project may hardcode a key, a connection string or a brand rule.
+This module provides strongly-typed configuration management for the JA Assure
+AI Marketing System via Pydantic Settings. It centralizes all application variables,
+database URLs, API credentials, model configurations, and runtime flags loaded from
+local `.env` files or system environment variables.
+
+Key Features:
+    - Provider Switching: Dynamically switch between Google Gemini and OpenAI models.
+    - Zero Quota Leaks: Configurable API timeouts and deterministic zero-temperature
+      settings for statutory compliance evaluation.
+    - Storage Independence: Supports SQLite for zero-setup local execution and PostgreSQL
+      for high-throughput production persistence.
 """
 
 from __future__ import annotations
@@ -16,6 +25,30 @@ BASE_DIR = Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
+    """Application-wide settings schema and environment parser.
+
+    Attributes:
+        app_name: Name of the application service.
+        environment: Deployment environment identifier ('dev', 'demo', or 'prod').
+        debug: Toggles verbose logging output.
+        app_host: Network interface for HTTP listening.
+        app_port: Network port for HTTP listening.
+        database_url: Database connection string (SQLAlchemy format).
+        llm_provider: Active LLM vendor ('gemini' or 'openai').
+        gemini_api_key: Secret API key for Google Gemini services.
+        gemini_model: Core generation model name.
+        gemini_image_model: Image generation model name.
+        gemini_video_model: Video generation model name.
+        openai_api_key: Secret API key for OpenAI services.
+        openai_model: Core generation model name for OpenAI fallback.
+        llm_temperature: Default sampling temperature for creative agents.
+        compliance_temperature: Deterministic sampling temperature (0.0) for regulatory audits.
+        max_compliance_retries: Maximum automated self-healing iterations before routing to human review.
+        feedback_memory_limit: Context window depth for historical human edit memory injection.
+        demo_mode: Flag indicating whether synthetic mock fallback is permitted.
+        publish_poll_interval: Scheduling frequency (in seconds) for publisher worker queues.
+    """
+
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",
         env_file_encoding="utf-8",
@@ -23,18 +56,17 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # --- application ---
+    # Core Application Configuration
     app_name: str = "JA Assure AI Marketing System"
     environment: Literal["dev", "demo", "prod"] = "dev"
     debug: bool = True
     app_host: str = "127.0.0.1"
     app_port: int = 8000
 
-    # --- database ---
-    # SQLite in development, PostgreSQL for the demo. One variable, no code change.
+    # Persistence Layer
     database_url: str = f"sqlite:///{BASE_DIR / 'ja_assure.db'}"
 
-    # --- LLM ---
+    # LLM & Generative Media Engine Configuration
     llm_provider: Literal["gemini", "openai"] = "gemini"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.6-flash"
@@ -45,14 +77,13 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     llm_temperature: float = 0.7
-    # The compliance judge is always deterministic. Creativity is a defect there.
     compliance_temperature: float = 0.0
 
-    # --- state machine ---
+    # State Machine & Circuit Breakers
     max_compliance_retries: int = 3
     feedback_memory_limit: int = 5
 
-    # --- optional memory/visual integrations ---
+    # Memory Systems & Knowledge Graphs
     obsidian_export_enabled: bool = False
     obsidian_vault_dir: str = ""
     excalidraw_export_enabled: bool = False
@@ -60,58 +91,58 @@ class Settings(BaseSettings):
     memgpt_agent_id: str = ""
     memgpt_timeout_seconds: float = 4.0
 
-    # --- demo mode ---------------------------------------------------------
-    # Demo writes (fallback copy, mock providers/publisher, stub reels, seed
-    # rows) are allowed ONLY when DEMO_MODE=true, and are always labeled
-    # demo/mock in the DB and UI. Default false = real-only, honest failures.
+    # Operational Modes
     demo_mode: bool = False
 
-    # --- research / scraping (Phase 5) ---
+    # Intelligence & Perception Engine Credentials
     serper_api_key: str = ""
     scrapegraph_api_key: str = ""
     google_places_api_key: str = ""
     hunter_api_key: str = ""
 
-    # --- stock footage fallback for video assembly ---
-    # Optional: free tier at pexels.com/api. Without it, assemble_video()'s
-    # moviepy fallback path just uses a brand-tinted ColorClip, same as before.
+    # Stock Video Fallback Integration
     pexels_api_key: str = ""
 
-    # --- publishing (Phase 7) ---
+    # Social Publishing Integrations
     buffer_access_token: str = ""
     ayrshare_api_key: str = ""
     public_media_base_url: str = ""
     publish_poll_interval: int = 60
-    # Embedded worker serves `python run.py`; standalone `python -m
-    # worker.scheduler` (run_demo.sh) sets WORKER_EMBEDDED=false so two
-    # schedulers never poll the approved queue at once.
     worker_embedded: bool = True
 
-    # --- paths ---
     @property
     def base_dir(self) -> Path:
+        """Resolve the absolute root directory of the application repository."""
         return BASE_DIR
 
     @property
     def compliance_rubric_path(self) -> Path:
-        """The gate loads its rules from disk at runtime, never from code."""
+        """Resolve the filesystem path to the external statutory compliance rubric."""
         return BASE_DIR / "compliance_rubric.md"
 
     @property
     def video_assets_dir(self) -> Path:
+        """Resolve the base path for static video templates and motion clips."""
         return BASE_DIR / "assets" / "video"
 
     @property
     def generated_dir(self) -> Path:
+        """Resolve the directory used for persistent output media and rendered graphics."""
         return BASE_DIR / "assets" / "generated"
 
     @property
     def is_sqlite(self) -> bool:
+        """Check whether the active database connection URI uses the SQLite engine."""
         return self.database_url.startswith("sqlite")
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    """Retrieve the cached singleton application settings instance.
+
+    Returns:
+        Settings: The instantiated and validated settings object.
+    """
     return Settings()
 
 

@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import datetime as dt
-import json
 import logging
-import sqlite3
 from pathlib import Path
+import sqlite3
 import sys
 
 # Ensure repository root is on sys.path
@@ -960,7 +958,7 @@ def export_runs_from_database(vault_dir: Path) -> None:
             "```",
             "",
             "## Active Regulatory Constraints",
-            f"Evaluated against [[Universal-Rubric]] and [[MAS-Notice-318]].",
+            "Evaluated against [[Universal-Rubric]] and [[MAS-Notice-318]].",
         ]
 
         note_path.write_text("\n".join(note_content) + "\n", encoding="utf-8")

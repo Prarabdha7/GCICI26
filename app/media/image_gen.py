@@ -13,8 +13,8 @@ effort, never blocks the text pipeline.
 from __future__ import annotations
 
 import logging
-import uuid
 from pathlib import Path
+import uuid
 
 from app.llm.client import image_call
 from app.media.assembly import TEMP_DIR

@@ -1,31 +1,36 @@
-"""FastAPI entrypoint.
+"""FastAPI Application Server and Lifecycle Management.
 
-Serves the REST API and (from Phase 6) the human review dashboard.
+This module initializes the core ASGI application for the JA Assure AI Marketing
+Platform. It configures asynchronous application lifespan hooks, mounts static asset
+and temporal media directories, registers sub-routers (API, Actions, and Dashboard),
+and provides health diagnostics.
 
-    uvicorn app.main:app --reload
-    python run.py
+Architectural Components:
+    - Lifespan Hook: Bootstraps relational databases, ensures filesystem directories
+      for ephemeral media, and manages the embedded background publication scheduler.
+    - Routing Topology: Exposes `/api/v1` programmatic REST endpoints, `/api` interactive
+      action endpoints, and `/dashboard` administrative UI views.
+    - Static Mounting: Exposes `/app` (single-page application frontend), `/temp`
+      (rendered video reels and audio tracks), and `/static` (persisted assets).
 """
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import logging
 import os
 import sys
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.api.dashboard import router as dashboard_router
 from app.api.actions import router as actions_router
+from app.api.dashboard import router as dashboard_router
 from app.api.routes import router as api_router
 from app.config import settings
 from app.db.database import init_db
 
-# AgentOps telemetry is opt-in and never runs under pytest: it makes a real
-# outbound network call, which would violate this project's zero-API-quota
-# testing rule and add latency to every app startup. Only initialises with a
-# valid AGENTOPS_API_KEY.
+# AgentOps observability instrumentation (opt-in; skipped during testing).
 agentops_key = os.getenv("AGENTOPS_API_KEY")
 is_testing = "pytest" in sys.modules or os.getenv("TESTING") == "true"
 if agentops_key and agentops_key not in ("", "your_key_here") and not is_testing:
@@ -44,6 +49,17 @@ log = logging.getLogger("ja_assure")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Manage application startup and shutdown lifecycle events.
+
+    Executes schema initialization, verifies directory structures, checks regulatory
+    rubric presence on disk, and optionally initiates the embedded publication worker.
+
+    Args:
+        app: The running FastAPI application instance.
+
+    Yields:
+        None: Yields control back to the ASGI server runtime.
+    """
     log.info("Starting %s (%s)", settings.app_name, settings.environment)
     init_db()
     settings.generated_dir.mkdir(parents=True, exist_ok=True)
@@ -51,9 +67,6 @@ async def lifespan(app: FastAPI):
     if not settings.compliance_rubric_path.exists():
         log.warning("compliance_rubric.md is missing — the compliance gate has nothing to ground on.")
     scheduler = None
-    # Embedded worker serves `python run.py` single-command mode. Standalone
-    # `python -m worker.scheduler` (run_demo.sh) sets WORKER_EMBEDDED=false so
-    # two schedulers never poll the approved queue at once (no double-publish).
     if settings.worker_embedded:
         try:
             from worker.scheduler import build_scheduler
@@ -65,11 +78,15 @@ async def lifespan(app: FastAPI):
             log.warning("Worker failed to start (%s) — API still serves", exc)
     yield
     if scheduler is not None:
-        try:
+        # Shutdown is best-effort: if APScheduler raises during teardown
+        # (e.g. because a job is mid-flight), we still want the process to
+        # exit cleanly rather than propagating an exception through the ASGI
+        # lifespan handler.
+        import contextlib
+        with contextlib.suppress(Exception):
             scheduler.shutdown(wait=False)
-        except Exception:
-            pass
     log.info("Shutting down.")
+
 
 
 app = FastAPI(
@@ -83,9 +100,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Serve generated reels/captions at /temp/* (mounted at import so TestClient sees it).
-# /static alias serves assets/generated/ for provider-facing media URLs.
-# /app serves the static frontend SPA (zero build step, same-origin API only).
 try:
     (settings.base_dir / "temp").mkdir(parents=True, exist_ok=True)
     app.mount("/temp", StaticFiles(directory=str(settings.base_dir / "temp")), name="temp")
@@ -104,13 +118,19 @@ app.include_router(dashboard_router)
 
 @app.get("/", include_in_schema=False)
 def root_redirect():
+    """Redirect incoming root path requests to the primary single-page application."""
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/app/")
 
 
 @app.get("/health", tags=["meta"])
 def health() -> dict[str, object]:
-    """Liveness probe. Also reports which provider and database are wired up."""
+    """Retrieve runtime health and environment diagnostic metadata.
+
+    Returns:
+        dict: Diagnostic details including database driver, configured LLM provider,
+              compliance rubric availability, and retry thresholds.
+    """
     return {
         "status": "ok",
         "app": settings.app_name,

@@ -167,7 +167,7 @@ def export_execution_to_obsidian(*, state: dict, thread_id: str) -> None:
     content_id = str(state.get("content_id") or "pending")
     status = str(state.get("status") or "unknown")
     retry_count = int(state.get("retry_count") or 0)
-    timestamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S")
+    timestamp = dt.datetime.now(dt.UTC).strftime("%Y%m%d-%H%M%S")
     slug = _safe_slug(f"{brand}-{platform}-{content_id}-{thread_id}")
 
     note_name = f"{timestamp}-{slug}"

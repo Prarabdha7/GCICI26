@@ -1,9 +1,17 @@
-"""Zero-cost video assembly: edge-tts voiceover + moviepy assembly.
+"""Vertical Video Reel Assembly and Media Synchronization Engine.
 
-    script (LLM) -> edge-tts -> voiceover.mp3 -> moviepy: set_audio -> reel.mp4
+This module provides end-to-end video synthesis capabilities for 9:16 vertical short-form
+social assets (Instagram Reels, TikTok, YouTube Shorts, and LinkedIn video). It implements
+a dual-tier rendering pipeline:
 
-moviepy is pinned <2.0 (CLAUDE.md section 8): the 2.x renamed setter API
-(`with_audio`) is not used here on purpose.
+Pipeline Architecture:
+    - Generative Diffusion Path (Tier 1): Generates high-fidelity video clips using Google
+      Veo (`veo-3.1-fast-generate-preview`) when API quotas are available.
+    - Deterministic Local Assembly (Tier 2): Synthesizes spoken voiceover via Microsoft
+      Edge-TTS, extracts word-level subtitle alignment timestamps, and compiles a vertical
+      video reel via direct FFmpeg filtering or MoviePy composition.
+    - Subtitle Burn-In: Generates standardized SubRip (.srt) and JSON timestamp tracks,
+      rendering timed bottom-third captions with Ken Burns motion effects.
 """
 
 from __future__ import annotations
@@ -11,29 +19,29 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import logging
-import uuid
 from pathlib import Path
+import uuid
 
 try:
     import edge_tts
-except ImportError:  # pragma: no cover - tests monkeypatch assembly.edge_tts
+except ImportError:
     class _EdgeTTSStub:
-        class Communicate:  # type: ignore[no-redef]
+        class Communicate:
             def __init__(self, *a, **k):
                 raise RuntimeError("edge-tts not installed")
-    edge_tts = _EdgeTTSStub()  # type: ignore[assignment]
+    edge_tts = _EdgeTTSStub()
 
-try:  # moviepy 1.x (pinned in requirements)
+try:
     from moviepy.editor import AudioFileClip, ColorClip, CompositeVideoClip, ImageClip, VideoFileClip
-except ImportError:  # moviepy 2.x or missing — tests monkeypatch these globals
+except ImportError:
     try:
-        from moviepy import AudioFileClip, ColorClip, CompositeVideoClip, ImageClip, VideoFileClip  # type: ignore[no-redef]
+        from moviepy import AudioFileClip, ColorClip, CompositeVideoClip, ImageClip, VideoFileClip
     except ImportError:
-        AudioFileClip = None  # type: ignore[assignment]
-        ColorClip = None  # type: ignore[assignment]
-        VideoFileClip = None  # type: ignore[assignment]
-        CompositeVideoClip = None  # type: ignore[assignment]
-        ImageClip = None  # type: ignore[assignment]
+        AudioFileClip = None
+        ColorClip = None
+        VideoFileClip = None
+        CompositeVideoClip = None
+        ImageClip = None
 
 from app.config import settings
 
@@ -59,11 +67,28 @@ BRAND_BG: dict[str, tuple[int, int, int]] = {
 
 
 def _brand_color(brand: str) -> tuple[int, int, int]:
+    """Retrieve the primary RGB backdrop color code associated with a brand persona.
+
+    Args:
+        brand: Brand identifier ('Jade', 'Jaguar Transit', or 'DoctorShield').
+
+    Returns:
+        tuple[int, int, int]: RGB color tuple.
+    """
     return BRAND_BG.get((brand or "").strip().lower(), (20, 20, 20))
 
 
 async def synthesize_voiceover(script: str, language: str, output_path: Path) -> Path:
-    """Synthesize `script` to MP3 via edge-tts, voice selected by `language`."""
+    """Synthesize voiceover audio to an MP3 file using neural Edge-TTS voices.
+
+    Args:
+        script: Text transcript to convert into speech.
+        language: ISO language code used to select regional voice profiles.
+        output_path: Target filesystem path for the generated MP3 asset.
+
+    Returns:
+        Path: The absolute path to the saved MP3 audio file.
+    """
     voice = VOICE_BY_LANGUAGE.get(language, DEFAULT_VOICE)
     communicate = edge_tts.Communicate(script, voice)
     await communicate.save(str(output_path))
@@ -71,13 +96,20 @@ async def synthesize_voiceover(script: str, language: str, output_path: Path) ->
 
 
 def _run_voiceover_sync(script: str, language: str, audio_path: Path) -> None:
-    """Event-loop safe: works from sync code AND inside a running FastAPI loop."""
+    """Execute asynchronous voiceover synthesis safely from both sync and async contexts.
+
+    Prevents event loop conflicts when called within an active FastAPI ASGI loop.
+
+    Args:
+        script: Text transcript to synthesize.
+        language: ISO language code.
+        audio_path: Destination audio file path.
+    """
     try:
         asyncio.get_running_loop()
     except RuntimeError:
         asyncio.run(synthesize_voiceover(script, language, audio_path))
         return
-    # Already inside a loop (FastAPI/LangGraph async) — isolate in a fresh thread+loop.
     def _runner() -> None:
         asyncio.run(synthesize_voiceover(script, language, audio_path))
 
@@ -86,7 +118,16 @@ def _run_voiceover_sync(script: str, language: str, audio_path: Path) -> None:
 
 
 async def get_word_boundaries(script: str, language: str) -> list[dict]:
-    """Real edge-tts word timestamps (seconds). Empty list when offline/mocked."""
+    """Stream real-time word boundary timestamps from the Edge-TTS audio service.
+
+    Args:
+        script: Text script being spoken.
+        language: Voice language code.
+
+    Returns:
+        list[dict]: Sequence of word timestamp dictionaries containing 'word',
+                    'start' (in seconds), and 'duration' (in seconds).
+    """
     try:
         voice = VOICE_BY_LANGUAGE.get(language, DEFAULT_VOICE)
         communicate = edge_tts.Communicate(script, voice)
@@ -105,7 +146,15 @@ async def get_word_boundaries(script: str, language: str) -> list[dict]:
 
 
 def estimate_timings(script: str, total_duration: float) -> list[dict]:
-    """Even-split fallback: distributes total_duration across words."""
+    """Evenly distribute script words across audio duration when streaming boundaries are absent.
+
+    Args:
+        script: Spoken text transcript.
+        total_duration: Overall duration of the voiceover audio track in seconds.
+
+    Returns:
+        list[dict]: Estimated word boundary items.
+    """
     words = (script or "").split()
     if not words or not total_duration or total_duration <= 0:
         return []
@@ -114,7 +163,15 @@ def estimate_timings(script: str, total_duration: float) -> list[dict]:
 
 
 def chunk_captions(timings: list[dict], *, chunk_size: int = 4) -> list[dict]:
-    """Groups word timings into caption cards for overlay."""
+    """Group individual word timestamps into readable multi-word caption cards.
+
+    Args:
+        timings: Sequential list of word boundary dictionaries.
+        chunk_size: Maximum number of words displayed per subtitle card.
+
+    Returns:
+        list[dict]: Array of caption segments with 'text', 'start', and 'end' seconds.
+    """
     caps = []
     for i in range(0, len(timings), chunk_size):
         chunk = timings[i:i + chunk_size]
@@ -129,7 +186,16 @@ def chunk_captions(timings: list[dict], *, chunk_size: int = 4) -> list[dict]:
 
 
 def render_subtitle_png(text: str, brand: str = "Jade", output_path: Path | None = None) -> Path | None:
-    """Small bottom-third subtitle card (transparent-ish black bar + white text)."""
+    """Render a semi-transparent subtitle card PNG for video overlay.
+
+    Args:
+        text: Subtitle text line to render.
+        brand: Brand theme used for typography styling.
+        output_path: Optional explicit output path.
+
+    Returns:
+        Path | None: File path to the rendered PNG image, or None on failure.
+    """
     try:
         from PIL import Image, ImageDraw
 
@@ -162,9 +228,16 @@ def render_subtitle_png(text: str, brand: str = "Jade", output_path: Path | None
 def render_caption_card(
     text: str, brand: str = "Jade", size: tuple[int, int] = (1080, 1920), output_path: Path | None = None
 ) -> Path | None:
-    """Kinetic-caption still: brand header + wrapped script + disclaimer. Pure Pillow, $0.
+    """Render a high-resolution vertical poster graphic with brand header and text wrap.
 
-    Returns the PNG path, or None if Pillow rendering fails (pipeline still continues).
+    Args:
+        text: Promotional copy to display on the poster.
+        brand: Target brand palette.
+        size: Target pixel dimensions (default: 1080x1920 for 9:16 aspect ratio).
+        output_path: Optional destination PNG path.
+
+    Returns:
+        Path | None: Path to the generated poster image, or None if Pillow fails.
     """
     try:
         from PIL import Image, ImageDraw
@@ -173,10 +246,8 @@ def render_caption_card(
         bg = _brand_color(brand)
         img = Image.new("RGB", (W, H), bg)
         draw = ImageDraw.Draw(img)
-        # Header bar
         draw.rectangle([0, 0, W, 220], fill=(0, 0, 0))
         draw.text((60, 70), f"JA ASSURE — {brand.upper()}", fill=(212, 175, 55))
-        # Body (naive wrap, no font file dependency)
         words, lines, cur = (text or "")[:420].split(), [], ""
         for w in words:
             if len(cur) + len(w) + 1 > 34:
@@ -195,16 +266,20 @@ def render_caption_card(
         out.parent.mkdir(parents=True, exist_ok=True)
         img.save(out)
         return out
-    except Exception as exc:  # pragma: no cover - Pillow optional path
+    except Exception as exc:
         log.warning("caption render skipped (%s)", exc)
         return None
 
 
 def _veo_prompt(script: str) -> str:
-    """Purely content-driven, same as app.graph.nodes._image_prompt — no
-    hardcoded brand name/niche/voice injected. The script is already
-    brand-appropriate (content_node writes it from a brand-voiced system
-    prompt); a fixed style clause on top only overrode off-niche topics."""
+    """Generate a clean visual diffusion prompt for the Google Veo model.
+
+    Args:
+        script: Voiceover script used to extract central visual imagery.
+
+    Returns:
+        str: Prompt tailored for text-free cinematic vertical video generation.
+    """
     subject = (script or "").strip()[:300]
     if not subject:
         return "A short vertical marketing reel, no on-screen text overlays, no logos, cinematic, suitable for Instagram/TikTok."
@@ -219,18 +294,27 @@ def assemble_video(
     background_path: Path | None = None,
     output_dir: Path = TEMP_DIR,
 ) -> Path:
-    """Assemble a reel. Tries Veo (real generative video, `app.llm.client.video_call`)
-    first; any failure (no key, no quota, timeout) falls back to the zero-cost
-    edge-tts + moviepy pipeline below — both are genuine, non-fabricated media,
-    Veo is just the higher-fidelity option when it's actually available.
+    """Assemble a 9:16 vertical video reel with synchronized voiceover and captions.
 
-    The fallback: voiceover over a background clip, trimmed to audio length.
-    `background_path` is a real clip for production use; if the caller didn't
-    supply one, real Pexels stock footage keyed off the script is fetched
-    next (app.media.stock_video); only if that's also unavailable (no
-    PEXELS_API_KEY, no results, network failure) does a brand-tinted
-    `ColorClip` stand in as the final safety net. Also renders a Pillow
-    caption card (kinetic still) alongside the MP4 for dashboard preview.
+    Rendering Strategy:
+        1. Google Veo: Attempts direct neural video synthesis (`veo-3.1-fast-generate-preview`).
+        2. Stock Video Retrieval: Queries Pexels stock video matching script semantic keywords.
+        3. Local Diffusion Backdrop: Re-uses recent FLUX.1 generative images with Ken Burns zoom-pan.
+        4. Edge-TTS & Subtitles: Generates timed voiceover and burn-in SubRip (.srt) subtitles
+           via direct FFmpeg or MoviePy compositor.
+
+    Args:
+        script: Voiceover text transcript.
+        language: ISO language code for speech accent selection.
+        brand: Brand identifier ('Jade', 'DoctorShield', or 'Jaguar Transit').
+        background_path: Optional explicit background image or video file path.
+        output_dir: Destination directory for rendered assets (default: TEMP_DIR).
+
+    Returns:
+        Path: Absolute path to the finalized MP4 video reel.
+
+    Raises:
+        RuntimeError: If video rendering fails in production mode without demo fallbacks.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     run_id = uuid.uuid4().hex
@@ -288,10 +372,10 @@ def assemble_video(
             _sh.copyfile(audio_path, voice_alias)
     except Exception:
         pass
-    try:
+    import contextlib
+    with contextlib.suppress(Exception):
         render_caption_card(script, brand=brand, output_path=output_dir / f"caption_{run_id}.png")
-    except Exception:
-        pass
+
     # Encoder check:
     # 1. If AudioFileClip is present (e.g. monkeypatched by pytest), run the moviepy path below.
     # 2. If AudioFileClip is missing but FFmpeg is on PATH, render real MP4 via FFmpeg!
@@ -421,15 +505,16 @@ def assemble_video(
 
             try:
                 cmd = _build_cmd(include_subtitles=bool(sub_filter))
-                proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+                proc = subprocess.run(cmd, capture_output=True, timeout=60)
                 if proc.returncode != 0 and sub_filter:
                     log.warning("assemble_video subtitles burn-in failed (%s) — retrying without burned subtitles", proc.stderr[-200:].decode("utf-8", errors="ignore"))
                     cmd = _build_cmd(include_subtitles=False)
-                    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+                    proc = subprocess.run(cmd, capture_output=True, timeout=60)
 
                 if proc.returncode == 0 and video_path.exists() and video_path.stat().st_size > 0:
                     rendered = True
                     log.info("assemble_video: rendered via direct FFmpeg %s (%d bytes)", video_path, video_path.stat().st_size)
+
             except Exception as ffmpeg_err:
                 log.warning("assemble_video FFmpeg render failed (%s)", ffmpeg_err)
 
@@ -502,10 +587,10 @@ def assemble_video(
                     sub = sub.with_start(cap["start"]).with_position(("center", 1350))
                 overlays.append(sub)
             if overlays:
-                try:
+                import contextlib
+                with contextlib.suppress(Exception):
                     background = CompositeVideoClip([background, *overlays], size=(1080, 1920))
-                except Exception:
-                    pass
+
     except Exception as exc:
         log.warning("subtitle overlay skipped (%s)", exc)
 
@@ -518,6 +603,17 @@ def assemble_video(
 
 
 async def assemble_video_async(*, script: str, language: str, brand: str = "Jade", background_path: Path | None = None, output_dir: Path = TEMP_DIR) -> Path:
-    """Async entrypoint for use inside running event loops (dashboard trigger)."""
+    """Asynchronously execute video assembly within a background executor thread.
+
+    Args:
+        script: Voiceover text script.
+        language: ISO language code.
+        brand: Target brand theme.
+        background_path: Optional custom backdrop media path.
+        output_dir: Target output directory for rendered media.
+
+    Returns:
+        Path: Filesystem path to the rendered MP4 file.
+    """
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, lambda: assemble_video(script=script, language=language, brand=brand, background_path=background_path, output_dir=output_dir))

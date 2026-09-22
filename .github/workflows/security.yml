@@ -62,29 +62,30 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install pip-audit
-        run: pip install pip-audit
-
-      - name: Audit dependencies
-        # --desc: include advisory description in output for triage context.
-        # --fix:  not passed — audit is read-only; remediation is a separate PR.
-        # The exit code is 0 when clean, 1 when vulnerabilities are found.
+      - name: Install production dependencies
+        # pip-audit resolves the dependency graph more reliably when packages
+        # are already installed because it can query the installed metadata
+        # directly rather than resolving range specifiers from scratch.
+        # The full install also catches transitive dependency vulnerabilities
+        # that a requirements-file-only scan would miss.
         run: |
-          pip-audit \
-            --requirement requirements.txt \
-            --desc \
-            --output-format columns
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pip-audit
 
-      # Save the full report as an artifact so it is browsable in the Actions
-      # summary even when the step fails and the log is truncated.
-      - name: Save audit report
+      - name: Audit installed environment
+        # Audit the resolved, installed environment rather than the
+        # requirements file.  This catches transitive vulnerabilities and
+        # avoids resolver failures on packages with complex extras.
+        # --desc: include the advisory description for triage context.
+        # --skip-editable: skip editable installs (none here, but safe default).
+        run: pip-audit --desc --skip-editable
+
+      # Save the full report as an artifact for browsing in the Actions summary
+      # even when the step fails and the terminal log is truncated.
+      - name: Save audit report (JSON)
         if: always()
-        run: |
-          pip-audit \
-            --requirement requirements.txt \
-            --desc \
-            --output-format json \
-            > pip-audit-report.json || true
+        run: pip-audit --desc --skip-editable --output-format json > pip-audit-report.json || true
 
       - name: Upload audit report
         if: always()
@@ -93,6 +94,7 @@ jobs:
           name: pip-audit-report
           path: pip-audit-report.json
           retention-days: 30
+
 
 
   # --------------------------------------------------------------------------

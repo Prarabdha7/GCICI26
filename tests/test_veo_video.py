@@ -43,11 +43,11 @@ class FakeVideoClip:
         self.audio = None
         self.written_to: str | None = None
 
-    def subclip(self, start: float, end: float) -> "FakeVideoClip":
+    def subclip(self, start: float, end: float) -> FakeVideoClip:
         self.duration = end - start
         return self
 
-    def set_audio(self, audio: FakeAudioClip) -> "FakeVideoClip":
+    def set_audio(self, audio: FakeAudioClip) -> FakeVideoClip:
         self.audio = audio
         return self
 

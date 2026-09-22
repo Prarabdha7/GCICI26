@@ -122,7 +122,7 @@ def publish_webhook(payload: WebhookPayload, db: Session = Depends(get_db)) -> d
         item.external_post_id = payload.external_post_id
     if payload.status == "published":
         item.status = ContentStatus.PUBLISHED.value
-        item.published_at = dt.datetime.now(dt.timezone.utc)
+        item.published_at = dt.datetime.now(dt.UTC)
     db.add(PublishEvent(content_id=item.id, event="webhook", provider="buffer", external_post_id=item.external_post_id, payload=payload.metrics or {}))
     if payload.metrics:
         db.add(PublishEvent(content_id=item.id, event="engagement", provider="webhook", external_post_id=item.external_post_id, payload=payload.metrics))
@@ -159,7 +159,7 @@ def metrics_trend(db: Session = Depends(get_db), days: int = Query(default=14, g
     """Per-day learning curve over REAL rows (demo excluded unless include_demo=true)."""
     import datetime as dt
 
-    since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)
+    since = dt.datetime.now(dt.UTC) - dt.timedelta(days=days)
     stmt = select(ContentQueue).where(ContentQueue.created_at >= since)
     if not include_demo:
         stmt = stmt.where(ContentQueue.is_demo.is_(False))

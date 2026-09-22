@@ -354,6 +354,7 @@ def _pollinations_image(*, prompt: str, aspect_ratio: str = "1:1") -> bytes:
             if the response body is empty.
     """
     import urllib.parse
+
     import httpx
 
     dim_map = {

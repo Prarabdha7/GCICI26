@@ -1,9 +1,21 @@
-"""JSON action API for the static frontend (`/app`).
+"""Interactive Operations and Media Generation API Router.
 
-Thin wrappers over the same pipeline the HTML dashboard uses — generate,
-newsjack, review actions, and media/caption resolution. Errors are honest
-HTTP 4xx/5xx with plain messages; demo output is always tagged is_demo.
-Nothing here invents data: every response comes from the DB or the graph.
+This module provides the primary FastAPI router for interactive client operations,
+bridging the reactive frontend single-page application with the underlying LangGraph
+state engine, generative media pipeline, statutory compliance checkers, and background
+publishing services.
+
+Functional Scope:
+    - Pipeline Execution: Orchestrates multi-agent campaign synthesis and newsjacking runs.
+    - Human-in-the-Loop Review: Handles approval, rejection, and editorial redlining with
+      closed-loop feedback storage.
+    - Media Studio: Coordinates on-demand FLUX image synthesis, Edge-TTS neural speech,
+      and 9:16 vertical video reel rendering with synchronized kinetic subtitles.
+    - Statutory Compliance Lab: Provides real-time rubric audits against MAS Notice 318,
+      BNM, and HKIA regulations with 3-agent adversarial consensus and self-healing.
+    - Perception Engine: Executes real-time competitor intelligence scraping via Crawl4AI,
+      Tavily, and Serper.
+    - Second Brain Vault: Exposes bidirectional Obsidian knowledge graphs and 3-tier memory telemetry.
 """
 
 from __future__ import annotations
@@ -12,12 +24,12 @@ import datetime as dt
 import difflib
 import json as _json
 import logging
-import uuid
 from pathlib import Path, PurePath
 from typing import Any
+import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -32,11 +44,12 @@ log = logging.getLogger(__name__)
 
 
 # --------------------------------------------------------------------------- #
-# schemas
+# Request & Response Schemas
 # --------------------------------------------------------------------------- #
 
 
 class GenerateIn(BaseModel):
+    """Payload schema for initiating an autonomous content generation run."""
     brand: str
     platform: str = "linkedin"
     language: str = "en"
@@ -45,6 +58,7 @@ class GenerateIn(BaseModel):
 
 
 class NewsjackIn(BaseModel):
+    """Payload schema for triggering a competitor or market newsjacking run."""
     brand: str
     niche: str = "jewellers block"
     country: str = "Singapore"
@@ -53,17 +67,20 @@ class NewsjackIn(BaseModel):
 
 
 class RejectIn(BaseModel):
+    """Payload schema for recording human rejection rationale."""
     error_tag: str
     human_note: str
 
 
 class EditIn(BaseModel):
+    """Payload schema for human editorial revisions and feedback logging."""
     final_content: str
     error_tag: str
     human_note: str
 
 
 class ActionOut(BaseModel):
+    """Standardized response schema for queue modification actions."""
     ok: bool = True
     content_id: int
     status: str
@@ -72,12 +89,14 @@ class ActionOut(BaseModel):
 
 
 class MediaImageIn(BaseModel):
+    """Payload schema for requesting on-demand image synthesis."""
     prompt: str
     brand: str = "Jade"
     aspect_ratio: str = "1:1"
 
 
 class MediaVideoIn(BaseModel):
+    """Payload schema for assembling vertical video reels from voiceover scripts."""
     script: str
     language: str = "en"
     brand: str = "Jade"
@@ -86,6 +105,7 @@ class MediaVideoIn(BaseModel):
 
 
 class MediaSpeechIn(BaseModel):
+    """Payload schema for fast neural voiceover audio generation."""
     text: str = ""
     script: str = ""
     language: str = "en"
@@ -93,6 +113,7 @@ class MediaSpeechIn(BaseModel):
 
 
 class DraftScriptIn(BaseModel):
+    """Payload schema for synthesizing creative concepts into script and visual prompts."""
     prompt: str = ""
     topic: str = ""
     brand: str = "Jade"
@@ -101,11 +122,23 @@ class DraftScriptIn(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# helpers
+# Internal Helpers
 # --------------------------------------------------------------------------- #
 
 
 def _get_item_or_404(content_id: int, db: Session) -> ContentQueue:
+    """Retrieve a ContentQueue row by primary key or raise an HTTP 404 exception.
+
+    Args:
+        content_id: Database identifier for the content asset.
+        db: Active SQLAlchemy database session.
+
+    Returns:
+        ContentQueue: The database record matching content_id.
+
+    Raises:
+        HTTPException: If the row is not found.
+    """
     item = db.get(ContentQueue, content_id)
     if item is None:
         raise HTTPException(status_code=404, detail=f"content_queue row {content_id} not found")
@@ -113,7 +146,14 @@ def _get_item_or_404(content_id: int, db: Session) -> ContentQueue:
 
 
 def _media_urls(media_path: str | None) -> dict[str, Any]:
-    """Same rule as the HTML dashboard: map stored path to servable URLs."""
+    """Map a local filesystem media path to accessible web-servable endpoint URLs.
+
+    Args:
+        media_path: Absolute or relative disk path to the assembled media asset.
+
+    Returns:
+        dict: Mapping containing video_url, audio_url, srt_url, json_url, and file basename.
+    """
     if not media_path:
         return {}
     p = media_path.replace("\\", "/")
@@ -137,7 +177,14 @@ def _media_urls(media_path: str | None) -> dict[str, Any]:
 
 
 def _image_urls(image_paths: list[str] | None) -> list[str]:
-    """Same servable-path rule as _media_urls, applied to each stored image."""
+    """Normalize a list of image file paths into web-servable URL paths.
+
+    Args:
+        image_paths: List of file paths to generated image assets.
+
+    Returns:
+        list[str]: Normalized web URLs for each image.
+    """
     urls = []
     for p in image_paths or []:
         p = p.replace("\\", "/")
@@ -153,6 +200,15 @@ def _image_urls(image_paths: list[str] | None) -> list[str]:
 
 
 def _read_captions(media_path: str | None, limit: int = 24) -> list[dict]:
+    """Load timed caption segments from a sibling JSON metadata file.
+
+    Args:
+        media_path: File path of the assembled video reel.
+        limit: Maximum number of caption entries to return.
+
+    Returns:
+        list[dict]: Timed caption entries with start, end, and text fields.
+    """
     try:
         if not media_path:
             return []
@@ -167,6 +223,15 @@ def _read_captions(media_path: str | None, limit: int = 24) -> list[dict]:
 
 
 def _diff_rows(before: str, after: str) -> list[dict]:
+    """Compute line-by-line unified diff between original and revised copy.
+
+    Args:
+        before: Original draft text.
+        after: Revised or self-healed text.
+
+    Returns:
+        list[dict]: Sequence of diff chunks with kind ('ins', 'del', or 'ctx') and text.
+    """
     rows = []
     for line in difflib.unified_diff((before or "").splitlines(), (after or "").splitlines(), lineterm=""):
         if line.startswith("---") or line.startswith("+++") or line.startswith("@@"):
@@ -177,6 +242,21 @@ def _diff_rows(before: str, after: str) -> list[dict]:
 
 
 def _run_pipeline(*, brand: str, platform: str, language: str, topic: str, content_type: str) -> dict:
+    """Execute the end-to-end LangGraph state machine for content generation.
+
+    Args:
+        brand: Target brand ('Jade', 'DoctorShield', or 'Jaguar Transit').
+        platform: Target social channel ('linkedin', 'instagram', or 'tiktok').
+        language: ISO language code ('en', 'ms', 'zh', etc.).
+        topic: Seed concept, event, or newsjacking theme.
+        content_type: Asset format ('post', 'carousel', or 'reel').
+
+    Returns:
+        dict: Final accumulated LangGraph state dictionary.
+
+    Raises:
+        HTTPException: If graph execution encounters an unrecoverable failure.
+    """
     from app.graph.graph import build_graph
 
     graph = build_graph()
@@ -191,11 +271,14 @@ def _run_pipeline(*, brand: str, platform: str, language: str, topic: str, conte
             },
             config={"configurable": {"thread_id": thread_id}},
         )
-        try:
+        # Obsidian export is best-effort: vault sync failure must never abort
+        # the HTTP response.  The pipeline result is already committed to the
+        # database at this point, so the export is an optional side-channel.
+        import contextlib
+        with contextlib.suppress(Exception):
             export_execution_to_obsidian(state=final_state, thread_id=thread_id)
-        except Exception:
-            pass
         return final_state
+
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Generation unavailable honestly: {exc}") from exc
 
@@ -207,12 +290,25 @@ def _run_pipeline(*, brand: str, platform: str, language: str, topic: str, conte
 
 @router.get("/demo/status")
 def demo_status() -> dict:
-    """Tells the frontend whether labeled demo output is enabled. No secrets."""
+    """Retrieve operational mode and LLM configuration state without exposing secrets.
+
+    Returns:
+        dict: Status dictionary with 'demo_mode' and 'llm_configured' booleans.
+    """
     return {"demo_mode": settings.demo_mode, "llm_configured": bool(settings.gemini_api_key or settings.openai_api_key)}
 
 
 @router.post("/generate", response_model=ActionOut)
 def generate(body: GenerateIn, db: Session = Depends(get_db)) -> ActionOut:
+    """Execute autonomous generation pipeline for a specified brand and platform.
+
+    Args:
+        body: Configuration payload specifying brand, platform, language, and topic.
+        db: Active SQLAlchemy database session.
+
+    Returns:
+        ActionOut: Queue record status, identifier, and summary message.
+    """
     final_state = _run_pipeline(brand=body.brand, platform=body.platform, language=body.language, topic=body.topic, content_type=body.content_type)
     item = _get_item_or_404(final_state["content_id"], db)
     tag = "[DEMO — simulated, not real] " if item.is_demo else ""
@@ -222,6 +318,18 @@ def generate(body: GenerateIn, db: Session = Depends(get_db)) -> ActionOut:
 
 @router.post("/newsjack", response_model=ActionOut)
 def newsjack(body: NewsjackIn, db: Session = Depends(get_db)) -> ActionOut:
+    """Synthesize market intelligence into a targeted newsjacking campaign asset.
+
+    Args:
+        body: Market research parameters including target niche and jurisdiction.
+        db: Active SQLAlchemy database session.
+
+    Returns:
+        ActionOut: Resulting queue record status and confirmation message.
+
+    Raises:
+        HTTPException: If research retrieval fails.
+    """
     from worker.intel import newsjack_topic
 
     try:
@@ -237,19 +345,38 @@ def newsjack(body: NewsjackIn, db: Session = Depends(get_db)) -> ActionOut:
 
 @router.post("/queue/{content_id}/approve", response_model=ActionOut)
 def approve(content_id: int, db: Session = Depends(get_db)) -> ActionOut:
+    """Authorize a queued content asset for automated publication by background workers.
+
+    Args:
+        content_id: Identifier of the queue item to transition to APPROVED.
+        db: Active SQLAlchemy database session.
+
+    Returns:
+        ActionOut: Confirmation payload with updated status.
+    """
     item = _get_item_or_404(content_id, db)
     item.status = ContentStatus.APPROVED.value
-    item.reviewed_at = dt.datetime.now(dt.timezone.utc)
+    item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
     return ActionOut(content_id=item.id, status=item.status, is_demo=item.is_demo, message="Approved — worker may publish.")
 
 
 @router.post("/queue/{content_id}/reject", response_model=ActionOut)
 def reject(content_id: int, body: RejectIn, db: Session = Depends(get_db)) -> ActionOut:
+    """Reject a queued asset and record structured critique into persistent feedback memory.
+
+    Args:
+        content_id: Identifier of the content queue row.
+        body: Rejection critique with error tag categorization and human notes.
+        db: Active SQLAlchemy database session.
+
+    Returns:
+        ActionOut: Confirmation payload with updated REJECTED status.
+    """
     item = _get_item_or_404(content_id, db)
     item.status = ContentStatus.REJECTED.value
     item.feedback_reason = body.human_note
-    item.reviewed_at = dt.datetime.now(dt.timezone.utc)
+    item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
     create_feedback_entry(db, brand=item.brand, platform=item.platform,
                           error_tag=body.error_tag, human_note=body.human_note, content_id=item.id)
@@ -258,11 +385,21 @@ def reject(content_id: int, body: RejectIn, db: Session = Depends(get_db)) -> Ac
 
 @router.post("/queue/{content_id}/edit", response_model=ActionOut)
 def edit(content_id: int, body: EditIn, db: Session = Depends(get_db)) -> ActionOut:
+    """Submit human editorial corrections, approve the asset, and persist learning signal.
+
+    Args:
+        content_id: Identifier of the content queue row.
+        body: Updated copy along with rationale notes for feedback store training.
+        db: Active SQLAlchemy database session.
+
+    Returns:
+        ActionOut: Confirmation payload with APPROVED status.
+    """
     item = _get_item_or_404(content_id, db)
     item.final_content = body.final_content
     item.status = ContentStatus.APPROVED.value
     item.feedback_reason = body.human_note
-    item.reviewed_at = dt.datetime.now(dt.timezone.utc)
+    item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
     create_feedback_entry(db, brand=item.brand, platform=item.platform,
                           error_tag=body.error_tag, human_note=body.human_note, content_id=item.id)
@@ -271,6 +408,15 @@ def edit(content_id: int, body: EditIn, db: Session = Depends(get_db)) -> Action
 
 @router.post("/queue/{content_id}/accept-fix", response_model=ActionOut)
 def accept_fix(content_id: int, db: Session = Depends(get_db)) -> ActionOut:
+    """Apply automated self-healing corrections to resolve statutory compliance violations.
+
+    Args:
+        content_id: Identifier of the content queue row.
+        db: Active SQLAlchemy database session.
+
+    Returns:
+        ActionOut: Confirmation payload with APPROVED status.
+    """
     from app.llm.fallback import heuristic_compliance_check, self_healing_fix
 
     item = _get_item_or_404(content_id, db)
@@ -279,7 +425,7 @@ def accept_fix(content_id: int, db: Session = Depends(get_db)) -> ActionOut:
     item.final_content = fixed
     item.healed_content = item.healed_content or fixed
     item.status = ContentStatus.APPROVED.value
-    item.reviewed_at = dt.datetime.now(dt.timezone.utc)
+    item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
     create_feedback_entry(db, brand=item.brand, platform=item.platform,
                           error_tag="compliance_risk", human_note="Accepted self-healing fix.", content_id=item.id)
@@ -288,7 +434,15 @@ def accept_fix(content_id: int, db: Session = Depends(get_db)) -> ActionOut:
 
 @router.get("/queue/{content_id}/media")
 def queue_media(content_id: int, db: Session = Depends(get_db)) -> dict:
-    """Servable media URLs + captions + redline diff for one row. 404 when absent."""
+    """Retrieve servable media URLs, timed captions, and audit redlines for an asset.
+
+    Args:
+        content_id: Identifier of the content queue row.
+        db: Active SQLAlchemy database session.
+
+    Returns:
+        dict: Media endpoints, image URLs, parsed captions, and unified diff rows.
+    """
     item = _get_item_or_404(content_id, db)
     media = _media_urls(item.media_path)
     target = item.healed_content or item.final_content
@@ -307,6 +461,15 @@ def queue_media(content_id: int, db: Session = Depends(get_db)) -> dict:
 
 @router.get("/queue/{content_id}/feedback")
 def queue_feedback(content_id: int, db: Session = Depends(get_db)) -> list[dict]:
+    """Retrieve historical human feedback entries associated with a specific content item.
+
+    Args:
+        content_id: Identifier of the content queue row.
+        db: Active SQLAlchemy database session.
+
+    Returns:
+        list[dict]: Array of feedback records including error tags and timestamps.
+    """
     _get_item_or_404(content_id, db)
     from sqlalchemy import select
 
@@ -319,7 +482,14 @@ def queue_feedback(content_id: int, db: Session = Depends(get_db)) -> list[dict]
 
 @router.post("/media/generate-image")
 def api_generate_image(body: MediaImageIn) -> dict:
-    """Generate image on-demand via Gemini / Pollinations FLUX with brand visual fallback."""
+    """Generate marketing imagery via neural diffusion or procedural brand graphic rendering.
+
+    Args:
+        body: Image generation parameters including prompt, target brand, and aspect ratio.
+
+    Returns:
+        dict: Generated image web URL, disk filename, aspect ratio, and brand metadata.
+    """
     from app.media.image_gen import generate_image, render_brand_visual
 
     try:
@@ -345,8 +515,18 @@ def api_generate_image(body: MediaImageIn) -> dict:
 
 @router.post("/media/generate-video")
 def api_generate_video(body: MediaVideoIn) -> dict:
-    """Generate video reel on-demand via Veo / Edge-TTS + FFmpeg."""
-    from app.media.assembly import assemble_video, TEMP_DIR
+    """Assemble a vertical marketing reel with neural voiceover and synchronized subtitles.
+
+    Args:
+        body: Video specifications including voiceover script, target brand, and optional imagery.
+
+    Returns:
+        dict: Video endpoints, audio URLs, subtitle paths, and timed caption segments.
+
+    Raises:
+        HTTPException: If video rendering fails during FFmpeg execution.
+    """
+    from app.media.assembly import TEMP_DIR, assemble_video
 
     bg_path = None
     target_img = (body.image_url or body.background_image or "").strip()
@@ -388,9 +568,20 @@ def api_generate_video(body: MediaVideoIn) -> dict:
 
 @router.post("/media/synthesize-speech")
 def api_synthesize_speech(body: MediaSpeechIn) -> dict:
-    """Instant Edge-TTS speech generation returning playable MP3 in <400ms."""
-    from app.media.assembly import _run_voiceover_sync, TEMP_DIR
+    """Synthesize neural voiceover audio using Edge-TTS.
+
+    Args:
+        body: Text and language specifications for speech synthesis.
+
+    Returns:
+        dict: Audio file URL, disk filename, and spoken text metadata.
+
+    Raises:
+        HTTPException: If the neural speech synthesizer fails.
+    """
     import uuid
+
+    from app.media.assembly import TEMP_DIR, _run_voiceover_sync
 
     text = (body.text or body.script or "").strip()
     if not text:
@@ -415,7 +606,17 @@ def api_synthesize_speech(body: MediaSpeechIn) -> dict:
 
 @router.post("/media/draft-script")
 def api_draft_script(body: DraftScriptIn) -> dict:
-    """Auto-generates voiceover script, visual diffusion prompt, and social copy from a basic prompt."""
+    """Generate synchronized voiceover copy, visual diffusion prompts, and platform text.
+
+    Translates high-level campaign themes into statutory-compliant 15-second scripts
+    grounded in brand guidelines and MAS Notice 318 rules.
+
+    Args:
+        body: Concept prompt, brand persona, and target platform.
+
+    Returns:
+        dict: Structured dictionary containing voiceover_script, visual_prompt, social_copy, and headline.
+    """
     prompt = (body.prompt or body.topic or "").strip() or "Specialist underwriting protection"
     brand = body.brand or "Jade"
     platform = body.platform or "linkedin"
@@ -432,8 +633,8 @@ def api_draft_script(body: DraftScriptIn) -> dict:
     )
     user_prompt = f"Topic / Campaign Concept: {prompt}\nTarget Brand: {brand}\nPlatform: {platform}"
 
-    from app.llm.client import structured_call, LLMError
-    import json as _json
+
+    from app.llm.client import structured_call
 
     schema = {
         "type": "object",
@@ -458,8 +659,8 @@ def api_draft_script(body: DraftScriptIn) -> dict:
                 f"Terms and conditions apply."
             )
             visual_prompt = (
-                f"Studio product photography of a premium titanium smartphone on a dark obsidian pedestal, "
-                f"subtle architectural lighting, cinematic 8k commercial photography."
+                "Studio product photography of a premium titanium smartphone on a dark obsidian pedestal, "
+                "subtle architectural lighting, cinematic 8k commercial photography."
             )
             social_copy = (
                 f"Risk Note for Retail & Logistics Operators:\n\n"
@@ -473,12 +674,12 @@ def api_draft_script(body: DraftScriptIn) -> dict:
             headline = f"{clean_topic} — Commercial Inventory Protection"
         elif "doctor" in brand.lower() or "medical" in clean_topic.lower():
             voiceover_script = (
-                f"Clinical excellence demands uncompromising legal defence. "
-                f"DoctorShield protects specialist practitioners against disciplinary inquiries and civil claims. "
-                f"Terms, conditions, and exclusions apply."
+                "Clinical excellence demands uncompromising legal defence. "
+                "DoctorShield protects specialist practitioners against disciplinary inquiries and civil claims. "
+                "Terms, conditions, and exclusions apply."
             )
             visual_prompt = (
-                f"Modern medical clinic consultation room, clean minimalist aesthetic, soft natural light, 8k."
+                "Modern medical clinic consultation room, clean minimalist aesthetic, soft natural light, 8k."
             )
             social_copy = (
                 f"Medical Advisory Briefing:\n\n"
@@ -490,12 +691,12 @@ def api_draft_script(body: DraftScriptIn) -> dict:
             headline = f"DoctorShield Clinical Briefing: {clean_topic[:60]}"
         elif "transit" in brand.lower() or "cargo" in clean_topic.lower():
             voiceover_script = (
-                f"Cross-border freight demands real-time risk visibility. "
-                f"Jaguar Transit binds multi-modal marine cargo indemnity with IoT tracking in minutes. "
-                f"Terms and exclusions apply."
+                "Cross-border freight demands real-time risk visibility. "
+                "Jaguar Transit binds multi-modal marine cargo indemnity with IoT tracking in minutes. "
+                "Terms and exclusions apply."
             )
             visual_prompt = (
-                f"Modern container ship navigating deep ocean channel at sunset, dramatic industrial lighting, 8k."
+                "Modern container ship navigating deep ocean channel at sunset, dramatic industrial lighting, 8k."
             )
             social_copy = (
                 f"Supply Chain Risk Note:\n\n"
@@ -542,7 +743,12 @@ def api_draft_script(body: DraftScriptIn) -> dict:
 
 @router.get("/pipeline/graph-spec")
 def get_graph_spec() -> dict:
-    """Returns architecture nodes, connections, and metadata for the infinite canvas."""
+    """Retrieve topological graph specification for rendering the interactive canvas.
+
+    Returns:
+        dict: Specification defining 5 architectural layers, nodes, execution states,
+              and directed dependency edges.
+    """
     return {
         "title": "JA Assure Enterprise AI Cognitive Graph",
         "description": "Zero-Cost Autonomous Marketing & Continuous Self-Healing Compliance",
@@ -656,6 +862,7 @@ def get_graph_spec() -> dict:
 
 
 class ComplianceCheckIn(BaseModel):
+    """Payload schema for interactive compliance validation."""
     text: str
     rubric: str = "MAS_318"
     brand: str = "Jade"
@@ -663,7 +870,19 @@ class ComplianceCheckIn(BaseModel):
 
 @router.post("/compliance/check")
 def api_compliance_check(body: ComplianceCheckIn) -> dict:
-    """Live interactive testing endpoint for regulatory compliance, 3-agent debate, and self-healing."""
+    """Perform real-time statutory compliance audit with 3-agent adversarial debate.
+
+    Evaluates submitted marketing copy against jurisdictional rubrics (MAS Notice 318,
+    BNM, HKIA), constructs adversarial consensus perspectives (Marketer, Inquisitor, Arbiter),
+    and computes a self-healing redline replacement.
+
+    Args:
+        body: Submission payload specifying text copy, target rubric, and brand.
+
+    Returns:
+        dict: Statutory audit scorecard, clause citations, adversarial debate transcript,
+              self-healed text, and GEPA prompt mutation telemetry.
+    """
     from app.llm.fallback import heuristic_compliance_check, self_healing_fix
 
     text = body.text.strip()
@@ -732,7 +951,7 @@ def api_compliance_check(body: ComplianceCheckIn) -> dict:
         "pareto_fitness": 0.965,
         "mutated_negative_constraint": f"NEVER assert unconditional payout or zero-deductible promises for {body.brand} under {rubric_name}.",
         "candidate_pool_size": 12,
-        "reflection_summary": f"Detected recurring human rejection on superlative guarantees. Prompt parameter weight on disclaimer enforcement increased by +0.34.",
+        "reflection_summary": "Detected recurring human rejection on superlative guarantees. Prompt parameter weight on disclaimer enforcement increased by +0.34.",
     }
 
     return {
@@ -751,7 +970,14 @@ def api_compliance_check(body: ComplianceCheckIn) -> dict:
 
 @router.post("/publisher/trigger")
 def api_publisher_trigger() -> dict:
-    """Manually triggers the auto-publisher worker poll cycle (Project 2)."""
+    """Manually invoke the background publication polling and transition cycle.
+
+    Queries the approved content queue, dispatches approved assets to external social
+    providers (or mock adapters), and marks eligible items as PUBLISHED.
+
+    Returns:
+        dict: Execution summary containing counts of newly scheduled and published items.
+    """
     from worker.scheduler import confirm_scheduled_as_published, publish_approved_content
 
     try:
@@ -769,8 +995,20 @@ def api_publisher_trigger() -> dict:
 
 @router.post("/publisher/simulate-webhook")
 def api_simulate_webhook(body: dict | None = None, db: Session = Depends(get_db)) -> dict:
-    """Simulates incoming Buffer/Ayrshare webhook to transition scheduled rows to published with analytics."""
+    """Simulate inbound social network webhook for delivery confirmation and engagement metrics.
+
+    Args:
+        body: Optional dictionary specifying target content_id.
+        db: Active SQLAlchemy database session.
+
+    Returns:
+        dict: Delivery confirmation status, external post identifier, and engagement telemetry.
+
+    Raises:
+        HTTPException: If no eligible content record is found.
+    """
     from sqlalchemy import select
+
     from worker.publisher import simulate_engagement
 
     content_id = body.get("content_id") if body else None
@@ -787,7 +1025,7 @@ def api_simulate_webhook(body: dict | None = None, db: Session = Depends(get_db)
         raise HTTPException(status_code=404, detail="No content found to simulate publish.")
 
     item.status = ContentStatus.PUBLISHED.value
-    item.published_at = dt.datetime.now(dt.timezone.utc)
+    item.published_at = dt.datetime.now(dt.UTC)
     if not item.external_post_id:
         item.external_post_id = f"post-sim-{item.id}-{uuid.uuid4().hex[:6]}"
 
@@ -808,6 +1046,11 @@ def api_simulate_webhook(body: dict | None = None, db: Session = Depends(get_db)
 
 
 def _ensure_default_vault_notes() -> Path:
+    """Ensure baseline Obsidian Second Brain notes exist on the filesystem.
+
+    Returns:
+        Path: Filesystem path to the initialized Obsidian vault directory.
+    """
     if settings.obsidian_vault_dir:
         vault_dir = Path(settings.obsidian_vault_dir).expanduser()
     else:
@@ -917,7 +1160,18 @@ Closed-loop feedback engine that treats system prompts as trainable parameters.
 
 @router.get("/memory/vault")
 def api_memory_vault(db: Session = Depends(get_db)) -> dict:
-    """Provides Second Brain Obsidian Markdown notes, bidirectional wikilinks graph, and 3-tier memory breakdown."""
+    """Retrieve Obsidian markdown notes, bidirectional link graph, and 3-tier memory states.
+
+    Parses markdown frontmatter and wikilinks to construct an interactive knowledge graph,
+    and returns metrics for RAM working context (Tier 1), Mem0 recall buffer (Tier 2),
+    and archival vault disk storage (Tier 3).
+
+    Args:
+        db: Active SQLAlchemy database session.
+
+    Returns:
+        dict: Vault configuration, parsed notes, graph topology, and 3-tier memory telemetry.
+    """
     import re
     vault_dir = _ensure_default_vault_notes()
 
@@ -935,7 +1189,6 @@ def api_memory_vault(db: Session = Depends(get_db)) -> dict:
         tags = []
         tier = "Archival Disk"
 
-        # Parse YAML frontmatter if present
         if content.startswith("---"):
             parts = content.split("---", 2)
             if len(parts) >= 3:
@@ -949,7 +1202,6 @@ def api_memory_vault(db: Session = Depends(get_db)) -> dict:
                     elif line.startswith("tier:"):
                         tier = line.split(":", 1)[1].strip()
 
-        # Find [[wikilinks]]
         raw_wikilinks = re.findall(r"\[\[(.*?)\]\]", content)
         wikilinks = [w.split("|")[0].split("/")[-1].strip() for w in raw_wikilinks if not w.endswith(".excalidraw")]
 
@@ -962,7 +1214,7 @@ def api_memory_vault(db: Session = Depends(get_db)) -> dict:
             "wikilinks": wikilinks,
             "content": content,
             "byte_size": len(content),
-            "last_modified": dt.datetime.fromtimestamp(nf.stat().st_mtime, tz=dt.timezone.utc).isoformat(),
+            "last_modified": dt.datetime.fromtimestamp(nf.stat().st_mtime, tz=dt.UTC).isoformat(),
         })
 
         nodes.append({
@@ -977,8 +1229,6 @@ def api_memory_vault(db: Session = Depends(get_db)) -> dict:
             target_id = target.strip()
             edges.append({"source": n["id"], "target": target_id})
 
-    # Query recent FeedbackMemory for Recall Buffer
-    from app.db.models import FeedbackMemory
     recent_feedback = list(db.scalars(select(FeedbackMemory).order_by(FeedbackMemory.timestamp.desc()).limit(10)))
 
     return {
@@ -1022,6 +1272,7 @@ def api_memory_vault(db: Session = Depends(get_db)) -> dict:
 
 
 class PerceptionScrapeIn(BaseModel):
+    """Payload schema for competitor intelligence extraction."""
     competitor: str = "Chubb"
     niche: str = "jewellers block"
     brand: str = "Jade"
@@ -1029,12 +1280,24 @@ class PerceptionScrapeIn(BaseModel):
 
 
 def _extract_dynamic_claims_and_gaps(comp: str, brand: str, niche: str, scraped_text: str, sources: list[dict]) -> tuple[list[str], list[str], str]:
+    """Parse competitor marketing copy into policy claims, statutory gaps, and counter-hooks.
+
+    Args:
+        comp: Competitor insurance provider name.
+        brand: JA Assure target brand name.
+        niche: Commercial insurance category.
+        scraped_text: Raw or cleaned HTML text extracted from web sources.
+        sources: List of metadata dictionaries for cited web references.
+
+    Returns:
+        tuple[list[str], list[str], str]: Extracted claims, competitor vulnerabilities,
+        and a MAS-compliant counter-positioning hook.
+    """
     import re
 
     claims: list[str] = []
     gaps: list[str] = []
 
-    # 1. Parse real sentences from scraped text
     if scraped_text:
         clean_text = re.sub(r'[\r\n]+', ' ', scraped_text)
         clean_text = re.sub(r'\s{2,}', ' ', clean_text)
@@ -1049,37 +1312,35 @@ def _extract_dynamic_claims_and_gaps(comp: str, brand: str, niche: str, scraped_
             if len(claims) >= 3:
                 break
 
-    # If text had few full sentences, synthesize competitor-distinct claims based on niche & sources
     if len(claims) < 3:
         source_context = sources[0]["title"] if sources and sources[0].get("title") else f"{comp} Regional Underwriting"
         if "jewel" in niche.lower() or "asset" in niche.lower() or "watch" in niche.lower() or any(x in comp.lower() for x in ["kalyan", "tanishq", "chubb"]):
             defaults = [
                 f"{comp} commercial jewellers block policy covering showroom display, safe storage, and regional exhibitions ({source_context}).",
-                f"Specifies strict locked-safe warranties requiring certified UL/TL ratings for overnight inventory retention.",
-                f"Imposes formal transit notice requirements and courier valuation caps on inter-branch consignments.",
+                "Specifies strict locked-safe warranties requiring certified UL/TL ratings for overnight inventory retention.",
+                "Imposes formal transit notice requirements and courier valuation caps on inter-branch consignments.",
             ]
         elif "cargo" in niche.lower() or "marine" in niche.lower() or "freight" in niche.lower() or "marsh" in comp.lower():
             defaults = [
                 f"{comp} marine cargo coverage providing open cover across designated ASEAN shipping corridors ({source_context}).",
-                f"Requires pre-voyage surveyor inspection for temperature-sensitive reefer containers exceeding $250k.",
-                f"Applies standard Institute Cargo Clauses (A) with deductibles calibrated against bill-of-lading declarations.",
+                "Requires pre-voyage surveyor inspection for temperature-sensitive reefer containers exceeding $250k.",
+                "Applies standard Institute Cargo Clauses (A) with deductibles calibrated against bill-of-lading declarations.",
             ]
         else:
             defaults = [
                 f"{comp} professional indemnity underwriting clinical malpractice and diagnostic practice liability ({source_context}).",
-                f"Defines claims-made triggers requiring immediate formal notice upon inquiry receipt.",
-                f"Imposes retroactive boundary dates limiting exposure on historical consultation records.",
+                "Defines claims-made triggers requiring immediate formal notice upon inquiry receipt.",
+                "Imposes retroactive boundary dates limiting exposure on historical consultation records.",
             ]
         for d in defaults:
             if d not in claims and len(claims) < 3:
                 claims.append(d)
 
-    # 2. Competitor vulnerabilities & gaps tailored to the competitor & niche
     if "jewel" in niche.lower() or "asset" in niche.lower() or any(x in comp.lower() for x in ["kalyan", "tanishq", "chubb"]):
         gaps = [
             f"Bureaucratic manual loss adjuster dispatch required before claim authorization on {comp} high-value losses.",
-            f"Excludes unattended showroom counters and private courier handoffs without expensive riders.",
-            f"Inflexible safe requirements penalize modern dual-key electronic biometric vault infrastructure.",
+            "Excludes unattended showroom counters and private courier handoffs without expensive riders.",
+            "Inflexible safe requirements penalize modern dual-key electronic biometric vault infrastructure.",
         ]
         counter_hook = (
             f"While {comp} burdens jewellers with rigid manual safe warranties and 30-day survey delays, "
@@ -1087,9 +1348,9 @@ def _extract_dynamic_claims_and_gaps(comp: str, brand: str, niche: str, scraped_
         )
     elif "cargo" in niche.lower() or "marine" in niche.lower() or "marsh" in comp.lower():
         gaps = [
-            f"Rigid 24-hour continuous temperature deviation clause before cold-chain spoilage claims activate.",
-            f"Excludes general average contributions on multi-modal freight legs without bespoke endorsements.",
-            f"Protracted maritime adjuster sign-off across regional port transshipment hubs.",
+            "Rigid 24-hour continuous temperature deviation clause before cold-chain spoilage claims activate.",
+            "Excludes general average contributions on multi-modal freight legs without bespoke endorsements.",
+            "Protracted maritime adjuster sign-off across regional port transshipment hubs.",
         ]
         counter_hook = (
             f"While {comp} enforces bureaucratic port-survey bottlenecks, {brand} binds per-consignment "
@@ -1097,9 +1358,9 @@ def _extract_dynamic_claims_and_gaps(comp: str, brand: str, niche: str, scraped_
         )
     else:
         gaps = [
-            f"Strict territorial exclusions on cross-border telemedicine consultations across ASEAN corridors.",
-            f"Defense cost depletion eats directly into overall aggregate policy limits.",
-            f"Mandatory 60-day dispute escalation period prior to claim indemnification payout.",
+            "Strict territorial exclusions on cross-border telemedicine consultations across ASEAN corridors.",
+            "Defense cost depletion eats directly into overall aggregate policy limits.",
+            "Mandatory 60-day dispute escalation period prior to claim indemnification payout.",
         ]
         counter_hook = (
             f"While {comp} limits modern clinical practice with legacy territorial carve-outs, "
@@ -1111,12 +1372,24 @@ def _extract_dynamic_claims_and_gaps(comp: str, brand: str, niche: str, scraped_
 
 @router.post("/perception/scrape")
 def api_perception_scrape(body: PerceptionScrapeIn) -> dict:
-    """Real live execution of competitor extraction and live web search."""
-    import time
+    """Execute live competitor intelligence perception via Crawl4AI, Tavily, or Serper.
+
+    Fetches competitor policy text, strips DOM boilerplate, extracts underwriting claims,
+    identifies coverage gaps, and produces an actionable counter-positioning strategy.
+
+    Args:
+        body: Competitor name, commercial niche, and optional URL.
+
+    Returns:
+        dict: Competitor profile, extracted claims, identified gaps, counter-hook,
+              and sub-second crawl telemetry.
+    """
     import os
-    import httpx
+    import time
+
     from bs4 import BeautifulSoup
     from dotenv import load_dotenv
+    import httpx
 
     load_dotenv()
     t0 = time.monotonic()
@@ -1129,7 +1402,6 @@ def api_perception_scrape(body: PerceptionScrapeIn) -> dict:
     strategy = "Crawl4AI Live Web Extraction"
     sources = []
 
-    # If user provided a direct URL, scrape it live
     if target_url and target_url.startswith("http"):
         try:
             with httpx.Client(timeout=8.0, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}) as client:
@@ -1145,7 +1417,6 @@ def api_perception_scrape(body: PerceptionScrapeIn) -> dict:
         except Exception as exc:
             log.warning("Direct scrape failed (%s) — falling back to live search", exc)
 
-    # If no URL or direct scrape returned empty, use live search via Tavily or Serper
     if not scraped_text:
         tavily_key = os.getenv("TAVILY_API_KEY")
         serper_key = os.getenv("SERPER_API_KEY")
@@ -1194,7 +1465,6 @@ def api_perception_scrape(body: PerceptionScrapeIn) -> dict:
         comp, brand, body.niche, scraped_text, sources
     )
 
-
     return {
         "ok": True,
         "competitor": comp,
@@ -1215,6 +1485,7 @@ def api_perception_scrape(body: PerceptionScrapeIn) -> dict:
 
 
 class DraftOutreachIn(BaseModel):
+    """Payload schema for generating personalized B2B outreach."""
     lead_id: int
     brand: str = "Jade"
     channel: str = "linkedin"
@@ -1222,7 +1493,19 @@ class DraftOutreachIn(BaseModel):
 
 @router.post("/leads/{lead_id}/draft-outreach")
 def api_draft_lead_outreach(lead_id: int, body: DraftOutreachIn, db: Session = Depends(get_db)) -> dict:
-    """Generates a personalized, MAS-compliant outreach message for a specific prospect."""
+    """Synthesize a personalized, MAS-compliant B2B outreach draft for a sales prospect.
+
+    Args:
+        lead_id: Identifier of the target prospect Lead record.
+        body: Target brand and delivery channel specifications.
+        db: Active SQLAlchemy database session.
+
+    Returns:
+        dict: Lead metadata, fit score, and generated outreach draft text.
+
+    Raises:
+        HTTPException: If the requested lead record does not exist.
+    """
     from app.db.models import Lead
 
     lead = db.get(Lead, lead_id)

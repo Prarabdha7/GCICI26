@@ -79,7 +79,7 @@ def publish_approved_content() -> int:
                     continue
             item.external_post_id = post_id
             item.status = ContentStatus.SCHEDULED.value
-            item.scheduled_for = dt.datetime.now(dt.timezone.utc)
+            item.scheduled_for = dt.datetime.now(dt.UTC)
             db.commit()
             log_event(db, content_id=content_id, event="scheduled", provider=provider, external_post_id=post_id)
             scheduled += 1
@@ -110,7 +110,7 @@ def confirm_scheduled_as_published() -> int:
                 continue
             metrics = simulate_engagement(item)
             item.status = ContentStatus.PUBLISHED.value
-            item.published_at = dt.datetime.now(dt.timezone.utc)
+            item.published_at = dt.datetime.now(dt.UTC)
             if not item.published_url and item.external_post_id:
                 item.published_url = f"https://mock.social/p/{item.external_post_id}"
             db.commit()

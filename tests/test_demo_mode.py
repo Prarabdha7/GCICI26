@@ -14,7 +14,6 @@ from app.db.database import session_scope
 from app.db.models import ContentQueue, ContentStatus
 from app.graph import nodes as nodes_module
 from app.llm.client import LLMError
-from app.agents import providers
 
 
 def _marketing_state(**overrides):

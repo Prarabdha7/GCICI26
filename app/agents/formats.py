@@ -72,7 +72,7 @@ def focus_group_notes(draft: str, brand: str) -> list[str]:
 def build_format_pack(draft: str, brand: str, platform: str = "linkedin") -> dict:
     """Try LLM JSON pack, fall back offline. Always returns full schema."""
     try:
-        from app.llm.client import LLMError, structured_call
+        from app.llm.client import structured_call
 
         system = (
             f"You are the repurposing agent for {brand}. Turn one draft into a multi-format pack. "

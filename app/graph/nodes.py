@@ -1,7 +1,22 @@
-"""LangGraph node implementations for the marketing pipeline.
+"""LangGraph Cognitive Workflow Node Implementations.
 
-Every LLM call goes through app.llm.client — nodes never import a vendor SDK
-directly (CLAUDE.md section 12).
+This module contains the functional state transformation nodes executed by the
+JA Assure marketing state machine. Each node represents a distinct agent or tool
+in the pipeline:
+
+Workflow Graph Topology:
+    1. Memory Retrieval Node: Injects historical human editorial critiques and Mem0
+       reflections to prevent recurring errors.
+    2. Market Research Node: Ingests real-time market sentiment and competitor developments
+       via Crawl4AI and search integrations.
+    3. Content Generation Node: Drafts platform-tailored copy under multi-brand persona
+       constraints (Jade, Jaguar Transit, DoctorShield).
+    4. Localization Node: Adapts draft content for Southeast Asian regional vernaculars
+       (English, Malay, Bahasa Indonesia, Thai, Traditional Chinese).
+    5. Statutory Compliance Gate: Evaluates drafts against MAS Notice 318, BNM, and HKIA
+       rubrics using deterministic zero-temperature judgment and adversarial debate.
+    6. Media Assembly Nodes: Compiles FLUX diffusion backdrops and 9:16 vertical video reels.
+    7. Persistence Node: Commits approved drafts to relational storage for human review.
 """
 
 from __future__ import annotations
@@ -27,7 +42,17 @@ log = logging.getLogger(__name__)
 
 
 def _adversarial_debate(brand: str, draft: str, rubric: str, violations: list[str]) -> tuple[str, str]:
-    """Marketer vs Inquisitor vs Arbiter. Returns (transcript, healed). Zero-key safe."""
+    """Conduct a 3-agent adversarial debate between Growth Marketer, Regulatory Inquisitor, and Arbiter.
+
+    Args:
+        brand: Target insurance brand name.
+        draft: Generated promotional text copy under review.
+        rubric: Full text of statutory compliance rubric.
+        violations: List of flagged statutory violation statements.
+
+    Returns:
+        tuple[str, str]: A formatted debate transcript and a self-healed compliant text draft.
+    """
     joined = "\n".join(f"- {v}" for v in violations) or "- (heuristic gate)"
     try:
         marketer = text_call(system="You are a growth marketer. Be concise.", user=prompts.adversarial_marketer_prompt(brand=brand, draft=draft))
@@ -47,7 +72,14 @@ def _adversarial_debate(brand: str, draft: str, rubric: str, violations: list[st
 
 
 def memory_retrieval_node(state: MarketingState) -> dict:
-    """Runs before content_node on every generation (not on retries)."""
+    """Retrieve historical human editorial corrections and augment with persistent agent memory.
+
+    Args:
+        state: Active LangGraph marketing workflow state.
+
+    Returns:
+        dict: State update dictionary with 'feedback_guidance' string.
+    """
     with session_scope() as db:
         entries = get_recent_feedback(db, brand=state["brand"], platform=state["platform"])
     local_guidance = format_guidance(entries)
@@ -60,10 +92,14 @@ def memory_retrieval_node(state: MarketingState) -> dict:
 
 
 def market_research_node(state: MarketingState) -> dict:
-    """Grounds the upcoming draft in live market/competitor context via the
-    keyless DuckDuckGo + Crawl4AI research utility (app/utils/research.py).
-    DuckDuckGo's free backend is occasionally rate-limited — an empty result
-    just means content_node writes without extra grounding, not a failure."""
+    """Ground promotional copy in live market news and competitor activity.
+
+    Args:
+        state: Active LangGraph marketing workflow state.
+
+    Returns:
+        dict: State update dictionary with 'market_research' context string.
+    """
     topic = state.get("topic")
     query = f"{state['brand']} {topic} news" if topic else f"{state['brand']} insurance news"
     try:
@@ -79,10 +115,17 @@ def market_research_node(state: MarketingState) -> dict:
 
 
 def content_node(state: MarketingState) -> dict:
-    """Generate (or rewrite) the draft. Injects prior compliance violations
-    into the rewrite prompt so a retry is never identical to the last draft.
-    Real mode: LLM errors propagate honestly. Demo mode (DEMO_MODE=true):
-    labeled domain fallback tagged [DEMO]."""
+    """Synthesize primary marketing copy or rewrite based on regulatory feedback.
+
+    Args:
+        state: Active LangGraph marketing workflow state.
+
+    Returns:
+        dict: State update dictionary containing the newly drafted content.
+
+    Raises:
+        LLMError: If LLM generation fails while in production mode.
+    """
     system = prompts.content_system_prompt(
         brand=state["brand"],
         platform=state["platform"],
@@ -114,6 +157,15 @@ def content_node(state: MarketingState) -> dict:
 
 
 def _log_content(state: MarketingState, draft: str) -> dict:
+    """Log telemetry details for content generation attempts.
+
+    Args:
+        state: Active LangGraph state.
+        draft: Newly produced draft string.
+
+    Returns:
+        dict: State dictionary with 'draft_content'.
+    """
     log.info(
         "content_node brand=%s platform=%s retry_count=%s",
         state["brand"], state["platform"], state.get("retry_count", 0),
@@ -122,9 +174,17 @@ def _log_content(state: MarketingState, draft: str) -> dict:
 
 
 def localization_node(state: MarketingState) -> dict:
-    """Adapt the draft for the target market. Runs even for `en` (a light
-    regional pass), and always before the compliance gate.
-    Real mode: LLM errors propagate. Demo mode: labeled offline pass."""
+    """Adapt the generated copy to the target jurisdiction's language and cultural tone.
+
+    Args:
+        state: Active LangGraph marketing state.
+
+    Returns:
+        dict: State update dictionary with localized draft content.
+
+    Raises:
+        LLMError: If remote LLM adaptation fails while operating in production mode.
+    """
     system = prompts.localization_system_prompt(brand=state["brand"], language=state["language"])
     user = prompts.localization_user_prompt(
         draft_content=state["draft_content"], language=state["language"]
@@ -146,10 +206,20 @@ def localization_node(state: MarketingState) -> dict:
 
 
 def compliance_gate_node(state: MarketingState) -> dict:
-    """Structured, temperature-0 judge grounded in compliance_rubric.md, read
-    fresh from disk on every call so rubric edits need no restart.
-    LLM judge when available; deterministic local banned-phrase pre-check is
-    always applied too and labeled [local-check] so its origin is explicit."""
+    """Evaluate content draft against statutory compliance rubrics with zero temperature.
+
+    Loads the compliance rubric from disk dynamically on every run. Performs deterministic
+    pattern matching alongside structured LLM evaluation against statutory regulations
+    (e.g., MAS Notice 318 Clause 4.2 guarantee bans). If violations occur and adversarial
+    mode is active, initiates a 3-agent debate to synthesize a self-healed draft.
+
+    Args:
+        state: Active LangGraph marketing state.
+
+    Returns:
+        dict: State update dictionary containing 'compliance_errors', 'retry_count',
+              and optional 'audit_transcript' and 'healed_content'.
+    """
     try:
         rubric = settings.compliance_rubric_path.read_text(encoding="utf-8")
     except OSError:
@@ -178,8 +248,6 @@ def compliance_gate_node(state: MarketingState) -> dict:
         "compliance_gate_node brand=%s FAIL retry_count=%s violations=%s",
         state["brand"], retry_count, violations,
     )
-    # Adversarial debate only when explicitly enabled (dashboard generate).
-    # Keeps exact return shape for unit tests that assert == dict.
     if not state.get("enable_adversarial"):
         return {"compliance_errors": violations, "retry_count": retry_count}
     transcript, healed = _adversarial_debate(state["brand"], state["draft_content"], rubric, violations)
@@ -187,8 +255,14 @@ def compliance_gate_node(state: MarketingState) -> dict:
 
 
 def _carousel_image_paths(slides: list[str]) -> list[str]:
-    """One image per carousel slide, best-effort. A single slide's failure
-    (rate limit, no key) never drops the slides that already succeeded."""
+    """Synthesize image assets for each slide of a multi-image carousel post.
+
+    Args:
+        slides: List of textual descriptions or body copy per slide.
+
+    Returns:
+        list[str]: Web-relative paths to the generated slide images.
+    """
     paths: list[str] = []
     for slide in slides:
         try:
@@ -206,8 +280,14 @@ def _carousel_image_paths(slides: list[str]) -> list[str]:
 
 
 def persist_node(state: MarketingState) -> dict:
-    """Writes the compliant draft to content_queue with status=pending.
-    Also builds the multi-format pack (thread/carousel/A-B/focus group) best-effort."""
+    """Commit the validated draft, media assets, and format packs into the database queue.
+
+    Args:
+        state: Active LangGraph marketing state.
+
+    Returns:
+        dict: State update dictionary containing 'content_id' and initial PENDING status.
+    """
     from app.agents.formats import build_format_pack, pack_to_json
 
     try:
@@ -248,9 +328,14 @@ def persist_node(state: MarketingState) -> dict:
 
 
 def video_assembly_node(state: MarketingState) -> dict:
-    """Renders a reel for instagram/tiktok/video assets. Never crashes the graph:
-    on media failure returns no media_path so text can still persist + gate.
-    Stores media_path as web-relative `temp/<file>` so /temp mount serves it."""
+    """Assemble a 9:16 vertical video reel for short-form video formats.
+
+    Args:
+        state: Active LangGraph marketing state.
+
+    Returns:
+        dict: State dictionary containing 'media_path' pointing to the assembled MP4.
+    """
     try:
         from app.config import settings as _settings
 
@@ -274,12 +359,14 @@ def video_assembly_node(state: MarketingState) -> dict:
 
 
 def _image_prompt(draft: str) -> str:
-    """Purely content-driven — no hardcoded brand name/niche/voice/palette
-    injected. The draft is already brand-appropriate (content_node writes it
-    from a brand-voiced system prompt), so re-injecting a fixed style clause
-    on top only overrode off-niche topics with generic brand imagery (see
-    PR #20's fix, which still left a hardcoded style clause trailing the
-    subject — this removes it entirely: the topic alone drives the image)."""
+    """Derive a clean, content-driven visual diffusion prompt from marketing copy.
+
+    Args:
+        draft: Generated promotional text copy.
+
+    Returns:
+        str: Refined prompt for photorealistic or editorial illustration generation.
+    """
     subject = (draft or "").strip()[:250]
     if not subject:
         return (
@@ -294,11 +381,14 @@ def _image_prompt(draft: str) -> str:
 
 
 def image_generation_node(state: MarketingState) -> dict:
-    """Renders one on-brand hero image for visual (Instagram post) assets.
-    Never crashes the graph: on generation failure returns no image_paths so
-    text can still persist + gate (same contract as video_assembly_node).
-    Carousel slide images are handled separately in persist_node, once the
-    format pack (and its per-slide texts) exists."""
+    """Generate a single hero marketing image for visual social posts.
+
+    Args:
+        state: Active LangGraph marketing state.
+
+    Returns:
+        dict: State update dictionary containing 'image_paths' with the generated file path.
+    """
     try:
         image_path = generate_image(_image_prompt(state["draft_content"]))
         media = str(image_path)
@@ -316,8 +406,16 @@ def image_generation_node(state: MarketingState) -> dict:
 
 
 def manual_intervention_node(state: MarketingState) -> dict:
-    """Terminal node for the circuit-breaker path. The graph never loops
-    forever and never crashes on a stubborn draft."""
+    """Terminal circuit-breaker state executed when maximum retry limits are exceeded.
+
+    Transitions non-converging assets to human review without blocking the pipeline.
+
+    Args:
+        state: Active LangGraph marketing state.
+
+    Returns:
+        dict: Empty state dictionary indicating pipeline termination.
+    """
     log.warning(
         "manual_intervention_node brand=%s retry_count=%s violations=%s",
         state["brand"], state.get("retry_count", 0), state.get("compliance_errors", []),

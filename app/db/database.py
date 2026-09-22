@@ -6,9 +6,9 @@ PostgreSQL (demo). Only DATABASE_URL changes.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
+import logging
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker

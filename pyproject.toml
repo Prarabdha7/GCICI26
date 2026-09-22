@@ -63,15 +63,39 @@ ignore = [
     # Line too long — ruff format handles wrapping; the linter deferring to
     # the formatter avoids spurious conflicts on long string literals and URLs.
     "E501",
-    # Do not enforce blank lines before a class docstring; Google style omits
-    # them and the codebase is consistent in that regard.
-    "E303",
-    # Allow assert statements — the test suite uses them extensively and
-    # removing them in production code is a separate, deliberate decision.
-    "B011",
+
+    # FastAPI dependency injection: `Depends(get_db)` in function-signature
+    # defaults is the canonical FastAPI pattern for injecting a database
+    # session.  Replacing it with a module-level singleton would break the
+    # per-request session lifecycle that SQLAlchemy's sessionmaker requires.
+    # Suppressed globally because every router file in the project uses it.
+    "B008",
+
     # Allow mutable default arguments in function signatures — several node
     # functions use [] defaults as sentinel values with explicit None guards.
     "B006",
+
+    # StrEnum (UP042) was added in Python 3.11.  The project targets 3.11+
+    # but the existing `class Foo(str, Enum)` pattern is used in SQLAlchemy
+    # ORM mapped columns, where the inheritance chain affects how the ORM
+    # resolves string equality during queries.  Migrating to StrEnum requires
+    # testing against all three supported Python versions to confirm no
+    # SQLAlchemy query-path regressions before enabling.
+    "UP042",
+
+    # E402 fires on scripts/sync_obsidian_vault.py because it inserts
+    # the project root into sys.path before importing app modules.  This is
+    # the only way to make the script runnable as `python scripts/...` without
+    # installing the project as a package.  The per-file-ignores below also
+    # cover it, but the global ignore prevents noise on other one-off scripts
+    # that follow the same pattern.
+    "E402",
+
+    # SIM102: collapsible-if suggests merging `if a: if b:` into `if a and b:`.
+    # The nested form is used in a few places where the outer condition is a
+    # type guard and the inner condition is a value guard — merging them hides
+    # the intent of the guard layers.
+    "SIM102",
 ]
 
 # Files and directories that ruff should never lint or format.
