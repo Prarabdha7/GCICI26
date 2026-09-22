@@ -1,0 +1,12 @@
+{
+  "_note": "Shape-only template. Copy to demo_samples.json (same folder, gitignored) and fill with machine-local demo content. The repo never ships filled samples; without demo_samples.json the app runs real-only and says so honestly.",
+  "search_results": [],
+  "prospects": [],
+  "personas": {},
+  "scrape_template": "",
+  "seed_rows": {
+    "content": [],
+    "feedback": [],
+    "leads": []
+  }
+}
