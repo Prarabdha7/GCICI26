@@ -70,3 +70,17 @@ def _no_live_research(monkeypatch):
 
     monkeypatch.setattr(nodes_module, "research_summary", _empty_research)
     monkeypatch.setattr(research_module, "research_summary", _empty_research)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_pollinations(monkeypatch):
+    """image_call falls back to Pollinations' keyless API when Gemini's
+    billing gate blocks it; auto-mock it closed so a test with a blanked
+    GEMINI_API_KEY doesn't make a real network call unless it explicitly
+    re-patches this itself (see test_image_generation.py's fallback tests)."""
+    import app.llm.client as client_module
+
+    def _closed(**kwargs):
+        raise client_module.LLMError("Pollinations mocked closed for tests")
+
+    monkeypatch.setattr(client_module, "_pollinations_image", _closed)

@@ -50,15 +50,17 @@ and [`docs/demo_runbook.md`](docs/demo_runbook.md).
   quota, timeout — falls back to `edge-tts` + `moviepy` assembly, the
   brief's own sanctioned zero-cost alternative. Both paths produce genuine,
   non-fabricated media; Veo is just higher-fidelity when it's available.
-- **Live image generation.** Instagram posts get a real, on-brand hero image
-  from Gemini's native image-output models (`app/media/image_gen.py`);
-  carousels get one image per slide, generated after the multi-format pack
-  exists. Same no-fabrication contract as everything else: a failure is
-  skipped, never faked. Note: confirmed live that Google's free AI-Studio
-  tier currently returns `429 RESOURCE_EXHAUSTED` (limit=0) for every
-  image-output model — billing must be enabled on the Gemini project for
-  this to actually produce images; the code path itself is correct and
-  degrades honestly without it.
+- **Live image generation, with a keyless fallback.** Instagram posts get a
+  real, on-brand hero image; carousels get one image per slide, generated
+  after the multi-format pack exists. Tries Gemini's native image-output
+  models first; Google's free AI-Studio tier currently returns `429
+  RESOURCE_EXHAUSTED` (limit=0) for every one of them (confirmed live —
+  billing must be enabled on the Gemini project to change that), so
+  `image_call()` falls back to Pollinations' free, keyless image API —
+  a real, live generation call, not a fabricated placeholder, same pattern
+  as the DuckDuckGo + Crawl4AI research fallback. Pollinations watermarks
+  its free-tier output with a small logo, which is an honest signal of
+  provenance, not a bug.
 - **Optional execution notebook.** When enabled, every run is exported to an
   Obsidian vault (`JA-Assure-Runs/`) and can include an Excalidraw flow file.
 

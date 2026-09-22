@@ -21,6 +21,7 @@ from app.db.database import session_scope
 from app.db.models import ContentQueue
 from app.graph import nodes as nodes_module
 from app.graph.graph import route_after_localization
+from app.llm.client import _pollinations_image as _real_pollinations_image
 from app.media import image_gen
 
 
@@ -54,6 +55,71 @@ def test_generate_image_propagates_provider_errors(monkeypatch, tmp_output_dir) 
 
     with pytest.raises(LLMError):
         image_gen.generate_image("prompt", output_dir=tmp_output_dir)
+
+
+def test_generate_image_detects_jpeg_from_pollinations(monkeypatch, tmp_output_dir) -> None:
+    jpeg_bytes = b"\xff\xd8\xff\xe0rest of a fake jpeg"
+    monkeypatch.setattr(image_gen, "image_call", lambda **kw: jpeg_bytes)
+
+    path = image_gen.generate_image("a jewellery display case", output_dir=tmp_output_dir)
+
+    assert path.suffix == ".jpg"
+    assert path.read_bytes() == jpeg_bytes
+
+
+def test_generate_image_detects_png_from_gemini(monkeypatch, tmp_output_dir) -> None:
+    png_bytes = b"\x89PNG\r\n\x1a\nrest of a fake png"
+    monkeypatch.setattr(image_gen, "image_call", lambda **kw: png_bytes)
+
+    path = image_gen.generate_image("a jewellery display case", output_dir=tmp_output_dir)
+
+    assert path.suffix == ".png"
+
+
+# --------------------------------------------------------------------------- #
+# image_call: Gemini -> Pollinations fallback
+# --------------------------------------------------------------------------- #
+
+
+def test_image_call_falls_back_to_pollinations_when_gemini_fails(monkeypatch) -> None:
+    from app.llm import client as client_module
+    from app.llm.client import LLMError, image_call
+
+    def gemini_fails(**kw):
+        raise LLMError("429 RESOURCE_EXHAUSTED, limit=0")
+
+    monkeypatch.setattr(client_module, "_gemini_image", gemini_fails)
+    monkeypatch.setattr(client_module, "_pollinations_image", lambda **kw: b"real pollinations jpeg bytes")
+
+    result = image_call(prompt="a jewellery display case")
+
+    assert result == b"real pollinations jpeg bytes"
+
+
+def test_image_call_raises_when_both_gemini_and_pollinations_fail(monkeypatch) -> None:
+    from app.llm import client as client_module
+    from app.llm.client import LLMError, image_call
+
+    monkeypatch.setattr(client_module, "_gemini_image", lambda **kw: (_ for _ in ()).throw(LLMError("no key")))
+    monkeypatch.setattr(client_module, "_pollinations_image", lambda **kw: (_ for _ in ()).throw(LLMError("network down")))
+
+    with pytest.raises(LLMError, match="network down"):
+        image_call(prompt="a jewellery display case")
+
+
+def test_pollinations_image_requires_a_non_empty_response(monkeypatch) -> None:
+    from app.llm.client import LLMError
+
+    class _FakeResponse:
+        content = b""
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr("httpx.get", lambda *a, **kw: _FakeResponse())
+
+    with pytest.raises(LLMError, match="empty image"):
+        _real_pollinations_image(prompt="a jewellery display case")
 
 
 # --------------------------------------------------------------------------- #
