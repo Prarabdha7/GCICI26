@@ -49,13 +49,16 @@ On failure it fetches a real Pexels stock clip keyed off the script
 uses it as the moviepy background; only if Pexels is also unavailable (no
 `PEXELS_API_KEY`, no results) does a brand-tinted `ColorClip` stand in —
 three tiers, each a real fallback for the one before it, never a
-fabrication. `image_generation_node` renders a
-single on-brand hero image via `image_call()` (`app/llm/client.py`), which
-tries Gemini's native image-output models first and falls back to
-Pollinations' free keyless API on any failure — confirmed live that
-Gemini's free tier returns 429/limit=0 for every image model, so this
-fallback is what actually produces images today, not a theoretical path.
-Carousels are the one case
+fabrication. `image_generation_node` renders a hero image via `image_call()`
+(`app/llm/client.py`), which tries Gemini's native image-output models
+first and falls back to Pollinations' free keyless API on any failure —
+confirmed live that Gemini's free tier returns 429/limit=0 for every image
+model, so this fallback is what actually produces images today, not a
+theoretical path. Both `_image_prompt()` and `_veo_prompt()` are driven
+entirely by the actual draft/script — no hardcoded brand name, niche,
+voice or palette is injected; an earlier version did inject those and it
+drowned out off-niche topics with generic brand imagery (confirmed live,
+fixed). Carousels are the one case
 neither handles here: `build_format_pack`'s slide texts don't exist until
 `persist_node` runs, so carousel images are generated there instead, one
 per slide, after the pack is built. All three media paths follow the same

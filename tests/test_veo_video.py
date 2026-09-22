@@ -114,13 +114,14 @@ def test_assemble_video_never_crashes_on_veo_failure_with_no_key(tmp_output_dir)
 # --------------------------------------------------------------------------- #
 
 
-def test_veo_prompt_puts_the_actual_script_before_brand_identity() -> None:
-    """Regression guard, same issue as _image_prompt: an off-niche script
-    must not get drowned out by the brand's niche/name leading the prompt."""
-    prompt = assembly._veo_prompt("The new iPhone: faster, brighter, unbreakable.", "Jade")
+def test_veo_prompt_is_driven_entirely_by_the_script() -> None:
+    """Regression guard, same issue as _image_prompt: no hardcoded brand
+    name/niche/voice should appear -- the script alone drives the video."""
+    prompt = assembly._veo_prompt("The new iPhone: faster, brighter, unbreakable.")
 
-    assert prompt.index("iPhone") < prompt.index("Jewellers Block Insurance")
     assert prompt.startswith("The new iPhone")
+    assert "Jewellers Block Insurance" not in prompt
+    assert "Jade" not in prompt
 
 
 def test_video_call_unknown_provider_raises() -> None:

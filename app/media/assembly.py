@@ -200,20 +200,15 @@ def render_caption_card(
         return None
 
 
-def _veo_prompt(script: str, brand: str) -> str:
-    """Same subject-first ordering as app.graph.nodes._image_prompt: the
-    actual script leads, brand identity trails as a style modifier, so an
-    off-niche topic doesn't just render as generic brand-niche footage."""
-    from app.agents.brand_knowledge import get_brand
-
-    info = get_brand(brand)
-    subject = (script or "").strip()[:300] or f"{info['niche']} marketing reel"
-    return (
-        f"{subject} "
-        f"Style: short vertical marketing reel for {info['name']}, a {info['niche']} brand. "
-        f"Voice: {info['voice']}. No on-screen text overlays, no logos, cinematic, "
-        "suitable for Instagram/TikTok."
-    )
+def _veo_prompt(script: str) -> str:
+    """Purely content-driven, same as app.graph.nodes._image_prompt — no
+    hardcoded brand name/niche/voice injected. The script is already
+    brand-appropriate (content_node writes it from a brand-voiced system
+    prompt); a fixed style clause on top only overrode off-niche topics."""
+    subject = (script or "").strip()[:300]
+    if not subject:
+        return "A short vertical marketing reel, no on-screen text overlays, no logos, cinematic, suitable for Instagram/TikTok."
+    return f"{subject} No on-screen text overlays, no logos, cinematic, suitable for Instagram/TikTok."
 
 
 def assemble_video(
@@ -244,7 +239,7 @@ def assemble_video(
     try:
         from app.llm.client import video_call
 
-        video_bytes = video_call(prompt=_veo_prompt(script, brand))
+        video_bytes = video_call(prompt=_veo_prompt(script))
         video_path.write_bytes(video_bytes)
         log.info("assemble_video: used Veo, wrote %s (%d bytes)", video_path, len(video_bytes))
         return video_path

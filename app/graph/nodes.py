@@ -184,13 +184,13 @@ def compliance_gate_node(state: MarketingState) -> dict:
     return {"compliance_errors": violations, "retry_count": retry_count, "audit_transcript": transcript, "healed_content": healed}
 
 
-def _carousel_image_paths(brand: str, slides: list[str]) -> list[str]:
+def _carousel_image_paths(slides: list[str]) -> list[str]:
     """One image per carousel slide, best-effort. A single slide's failure
     (rate limit, no key) never drops the slides that already succeeded."""
     paths: list[str] = []
     for slide in slides:
         try:
-            image_path = generate_image(_image_prompt(brand, slide))
+            image_path = generate_image(_image_prompt(slide))
             media = str(image_path)
             try:
                 base = settings.base_dir.resolve()
@@ -219,7 +219,7 @@ def persist_node(state: MarketingState) -> dict:
     image_paths = list(state.get("image_paths") or [])
     content_type = (state.get("content_type") or "post").lower()
     if content_type == "carousel" and pack and pack.get("carousel"):
-        image_paths = _carousel_image_paths(state["brand"], pack["carousel"])
+        image_paths = _carousel_image_paths(pack["carousel"])
 
     is_demo = bool(state.get("is_demo")) or (state.get("draft_content") or "").startswith("[DEMO]")
     with session_scope() as db:
@@ -271,21 +271,21 @@ def video_assembly_node(state: MarketingState) -> dict:
     return {"media_path": media}
 
 
-def _image_prompt(brand: str, draft: str) -> str:
-    """The actual subject (what was written) leads the prompt; brand identity
-    trails as a style/palette modifier. Leading with "for {brand} ({niche})"
-    dominated keyword-driven image models (confirmed live via the Pollinations
-    fallback) regardless of what the draft actually said — an off-niche
-    topic still rendered as generic brand-niche imagery."""
-    from app.agents.brand_knowledge import get_brand
-
-    info = get_brand(brand)
-    colors = info.get("colors", {})
-    subject = (draft or "").strip()[:250] or f"{info['niche']} marketing visual"
+def _image_prompt(draft: str) -> str:
+    """Purely content-driven — no hardcoded brand name/niche/voice/palette
+    injected. The draft is already brand-appropriate (content_node writes it
+    from a brand-voiced system prompt), so re-injecting a fixed style clause
+    on top only overrode off-niche topics with generic brand imagery (see
+    PR #20's fix, which still left a hardcoded style clause trailing the
+    subject — this removes it entirely: the topic alone drives the image)."""
+    subject = (draft or "").strip()[:250]
+    if not subject:
+        return (
+            "A professional marketing photo, no text overlay, no logos, "
+            "photorealistic, suitable for an Instagram post."
+        )
     return (
         f"{subject} "
-        f"Style: professional marketing photo for {info['name']}, a {info['niche']} brand. "
-        f"Voice: {info['voice']}. Accent palette: {colors.get('primary', '')} and {colors.get('secondary', '')}. "
         "No text overlay, no logos, photorealistic or tasteful editorial "
         "illustration suitable for an Instagram post."
     )
@@ -298,7 +298,7 @@ def image_generation_node(state: MarketingState) -> dict:
     Carousel slide images are handled separately in persist_node, once the
     format pack (and its per-slide texts) exists."""
     try:
-        image_path = generate_image(_image_prompt(state.get("brand", "Jade"), state["draft_content"]))
+        image_path = generate_image(_image_prompt(state["draft_content"]))
         media = str(image_path)
         try:
             base = settings.base_dir.resolve()
