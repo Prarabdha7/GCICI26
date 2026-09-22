@@ -8,6 +8,8 @@ Serves the REST API and (from Phase 6) the human review dashboard.
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -17,6 +19,18 @@ from app.api.dashboard import router as dashboard_router
 from app.api.routes import router as api_router
 from app.config import settings
 from app.db.database import init_db
+
+# AgentOps telemetry is opt-in and never runs under pytest: it makes a real
+# outbound network call, which would violate this project's zero-API-quota
+# testing rule and add latency to every app startup.
+agentops_key = os.getenv("AGENTOPS_API_KEY")
+is_testing = "pytest" in sys.modules or os.getenv("TESTING") == "true"
+if agentops_key and agentops_key not in ("", "your_key_here") and not is_testing:
+    try:
+        import agentops
+        agentops.init(api_key=agentops_key, default_tags=["hackathon-demo"])
+    except Exception:
+        pass
 
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
