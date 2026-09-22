@@ -57,16 +57,19 @@ class BufferPublisher(BasePublisher):
         if media_url:
             variables["input"]["media"] = [{"url": media_url}]
 
-        response = httpx.post(
-            self.API_URL,
-            headers={"Authorization": f"Bearer {self.access_token}"},
-            json={
-                "query": "mutation CreatePost($input: CreatePostInput!) { createPost(input: $input) { id } }",
-                "variables": variables,
-            },
-            timeout=30.0,
-        )
-        response.raise_for_status()
+        try:
+            response = httpx.post(
+                self.API_URL,
+                headers={"Authorization": f"Bearer {self.access_token}"},
+                json={
+                    "query": "mutation CreatePost($input: CreatePostInput!) { createPost(input: $input) { id } }",
+                    "variables": variables,
+                },
+                timeout=30.0,
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise PublisherError(f"Buffer publish failed: {exc}") from exc
         data = response.json()
         if data.get("errors"):
             raise PublisherError(f"Buffer publish failed: {data['errors']}")
@@ -92,10 +95,13 @@ class AyrsharePublisher(BasePublisher):
         if media_url:
             payload["mediaUrls"] = [media_url]
 
-        response = httpx.post(
-            self.API_URL, headers={"Authorization": f"Bearer {self.api_key}"}, json=payload, timeout=30.0
-        )
-        response.raise_for_status()
+        try:
+            response = httpx.post(
+                self.API_URL, headers={"Authorization": f"Bearer {self.api_key}"}, json=payload, timeout=30.0
+            )
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise PublisherError(f"Ayrshare publish failed: {exc}") from exc
         data = response.json()
         post_ids = data.get("postIds") or []
         if not post_ids:
