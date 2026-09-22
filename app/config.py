@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     llm_provider: Literal["gemini", "openai"] = "gemini"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.6-flash"
-    gemini_image_model: str = "gemini-2.5-flash-image"
+    gemini_image_model: str = "gemini-3.1-flash-image"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     llm_temperature: float = 0.7
