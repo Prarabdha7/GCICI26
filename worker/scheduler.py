@@ -6,6 +6,7 @@ Nothing publishes without a human approving it first (CLAUDE.md's non-negotiable
 from __future__ import annotations
 
 import logging
+import time
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import select
@@ -51,3 +52,23 @@ def build_scheduler() -> BackgroundScheduler:
         publish_approved_content, "interval", seconds=settings.publish_poll_interval, id=JOB_ID
     )
     return scheduler
+
+
+def main() -> None:
+    """Run the worker as a standalone process: `python -m worker.scheduler`."""
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)-8s %(name)s | %(message)s"
+    )
+    scheduler = build_scheduler()
+    scheduler.start()
+    log.info("Auto-publisher worker started — polling every %ss.", settings.publish_poll_interval)
+    try:
+        while True:
+            time.sleep(1)
+    except (KeyboardInterrupt, SystemExit):
+        scheduler.shutdown()
+        log.info("Auto-publisher worker stopped.")
+
+
+if __name__ == "__main__":
+    main()
