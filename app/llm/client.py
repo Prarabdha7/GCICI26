@@ -74,12 +74,24 @@ def image_call(
     prompt: str,
     provider: str | None = None,
 ) -> bytes:
-    """Generates a single image from a text prompt. Returns raw image bytes
-    (PNG). Used by app.media.image_gen for Instagram-visual posts/carousels."""
+    """Generates a single image from a text prompt. Returns raw image bytes.
+    Used by app.media.image_gen for Instagram-visual posts/carousels.
+
+    Gemini's native image-output models are billing-gated on the free tier
+    (confirmed live: 429 RESOURCE_EXHAUSTED, limit=0, on every image model
+    this key can see). Rather than fail the whole pipeline over that, this
+    falls back to Pollinations' keyless image API — a real, live, free
+    generation call, not a fabricated placeholder — the same pattern this
+    project already uses for research (DuckDuckGo + Crawl4AI instead of a
+    paid search key)."""
     name = _resolve(provider)
-    if name == "gemini":
+    if name != "gemini":
+        raise LLMError(f"Image generation not supported for LLM_PROVIDER: {name!r}")
+    try:
         return _gemini_image(prompt=prompt)
-    raise LLMError(f"Image generation not supported for LLM_PROVIDER: {name!r}")
+    except LLMError as exc:
+        log.warning("Gemini image generation unavailable (%s) — falling back to Pollinations (keyless, free)", exc)
+        return _pollinations_image(prompt=prompt)
 
 
 def video_call(
@@ -195,6 +207,24 @@ def _gemini_image(*, prompt: str) -> bytes:
     if not image_bytes:
         raise LLMError("Gemini returned no image data.")
     return image_bytes
+
+
+def _pollinations_image(*, prompt: str) -> bytes:
+    """Keyless, free image generation — no account, no billing. Confirmed
+    live: GET returns a real image/jpeg body."""
+    import urllib.parse
+
+    import httpx
+
+    url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt)}"
+    try:
+        response = httpx.get(url, timeout=45.0, follow_redirects=True)
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise LLMError(f"Pollinations image call failed: {exc}") from exc
+    if not response.content:
+        raise LLMError("Pollinations returned an empty image.")
+    return response.content
 
 
 def _gemini_video(*, prompt: str, duration_seconds: int) -> bytes:

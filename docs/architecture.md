@@ -45,8 +45,12 @@ avoids a second live research call per retry).
 generative video via the Gemini API, `app/llm/client.py::video_call`) and
 falls back to script → `edge-tts` voiceover → `moviepy` assembly on any
 failure (no key, no quota, timeout). `image_generation_node` renders a
-single on-brand hero image (Gemini's native image-output models,
-`app/media/image_gen.py`) for Instagram posts. Carousels are the one case
+single on-brand hero image via `image_call()` (`app/llm/client.py`), which
+tries Gemini's native image-output models first and falls back to
+Pollinations' free keyless API on any failure — confirmed live that
+Gemini's free tier returns 429/limit=0 for every image model, so this
+fallback is what actually produces images today, not a theoretical path.
+Carousels are the one case
 neither handles here: `build_format_pack`'s slide texts don't exist until
 `persist_node` runs, so carousel images are generated there instead, one
 per slide, after the pack is built. All three media paths follow the same
