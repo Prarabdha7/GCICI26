@@ -39,15 +39,19 @@ attempt — that's injected directly into the rewrite prompt, which is a
 sharper signal than re-fetching the same historical feedback again (and
 avoids a second live research call per retry).
 
-**Image vs. video routing:** `video_assembly_node` renders a reel (script →
-voiceover → assembled clip) for `tiktok`, or any platform when
-`content_type=="video"`. `image_generation_node` renders a single on-brand
-hero image (Gemini/Imagen, `app/media/image_gen.py`) for Instagram posts.
-Carousels are the one case neither handles here: `build_format_pack`'s slide
-texts don't exist until `persist_node` runs, so carousel images are
-generated there instead, one per slide, after the pack is built. Both media
-nodes follow the same fail-open contract — a generation failure is logged
-and skipped, never fabricated, and never blocks the text pipeline.
+**Image vs. video routing:** `video_assembly_node` renders a reel for
+`tiktok`, or any platform when `content_type=="video"` — internally,
+`assemble_video()` (`app/media/assembly.py`) tries Veo first (real
+generative video via the Gemini API, `app/llm/client.py::video_call`) and
+falls back to script → `edge-tts` voiceover → `moviepy` assembly on any
+failure (no key, no quota, timeout). `image_generation_node` renders a
+single on-brand hero image (Gemini's native image-output models,
+`app/media/image_gen.py`) for Instagram posts. Carousels are the one case
+neither handles here: `build_format_pack`'s slide texts don't exist until
+`persist_node` runs, so carousel images are generated there instead, one
+per slide, after the pack is built. All three media paths follow the same
+fail-open contract — a generation failure is logged and skipped, never
+fabricated, and never blocks the text pipeline.
 
 **Circuit breaker:** `route_after_compliance` (`app/graph/routing.py`) is the
 only place retry policy lives. `retry_count` is incremented exclusively by
