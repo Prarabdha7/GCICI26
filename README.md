@@ -46,7 +46,9 @@ and [`docs/demo_runbook.md`](docs/demo_runbook.md).
   fallback copy, mock providers/publisher, stub reels and seed rows engage —
   all tagged `[DEMO]` / `mock-` / `is_demo` and excluded from real metrics.
 - **Three-tier video: Veo → real stock footage → ColorClip.** `assemble_video()`
-  tries Veo (real generative video via the Gemini API) first; any failure —
+  tries Veo (real generative video via the Gemini API, prompted purely from
+  the actual script — no hardcoded brand name/niche/voice injected) first;
+  any failure —
   no key, no quota, timeout — falls back to `edge-tts` + `moviepy` assembly
   with a real Pexels stock clip keyed off the script as the background
   (`app/media/stock_video.py`); if that's also unavailable (no
@@ -55,7 +57,10 @@ and [`docs/demo_runbook.md`](docs/demo_runbook.md).
   tiers produce genuine, non-fabricated media — each is just higher-fidelity
   than the next when it's actually available.
 - **Live image generation, with a keyless fallback.** Instagram posts get a
-  real, on-brand hero image; carousels get one image per slide, generated
+  real hero image driven entirely by what was actually written — no
+  hardcoded brand name/niche/voice/palette injected into the image prompt,
+  since that drowned out off-niche topics with generic brand imagery
+  (confirmed live, fixed); carousels get one image per slide, generated
   after the multi-format pack exists. Tries Gemini's native image-output
   models first; Google's free AI-Studio tier currently returns `429
   RESOURCE_EXHAUSTED` (limit=0) for every one of them (confirmed live —
