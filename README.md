@@ -11,7 +11,7 @@ or rejects — and **every rejection is stored and injected into the next genera
 so the system stops repeating mistakes. Approved assets are published automatically
 by a background worker.
 
-> Status: **Phase 1 complete** — see `PLAN.md` for the full roadmap and
+> Status: **Phase 1 complete** — see `PLAN.md` for the full roadmap and everything
 > `CLAUDE.md` for the architecture of record.
 
 ## Quick start
