@@ -48,9 +48,14 @@ and [`docs/demo_runbook.md`](docs/demo_runbook.md).
 - **Zero-cost media pipeline.** Voiceover via `edge-tts`, assembly via
   `moviepy` — no paid video API.
 - **Live image generation.** Instagram posts get a real, on-brand hero image
-  from Gemini/Imagen (`app/media/image_gen.py`); carousels get one image per
-  slide, generated after the multi-format pack exists. Same no-fabrication
-  contract as everything else: a failure is skipped, never faked.
+  from Gemini's native image-output models (`app/media/image_gen.py`);
+  carousels get one image per slide, generated after the multi-format pack
+  exists. Same no-fabrication contract as everything else: a failure is
+  skipped, never faked. Note: confirmed live that Google's free AI-Studio
+  tier currently returns `429 RESOURCE_EXHAUSTED` (limit=0) for every
+  image-output model — billing must be enabled on the Gemini project for
+  this to actually produce images; the code path itself is correct and
+  degrades honestly without it.
 - **Optional execution notebook.** When enabled, every run is exported to an
   Obsidian vault (`JA-Assure-Runs/`) and can include an Excalidraw flow file.
 

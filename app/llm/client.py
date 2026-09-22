@@ -145,26 +145,36 @@ def _gemini(*, system: str, user: str, temperature: float, schema: dict[str, Any
 
 
 def _gemini_image(*, prompt: str) -> bytes:
+    """Uses generate_content with an image-output model (gemini-*-image), not
+    the separate Imagen generate_images API: that method is Enterprise-only
+    ("This method is only supported in Gemini Enterprise Agent Platform mode,
+    not in Gemini Developer API mode") on an AI-Studio key, confirmed live
+    against this project's key. generate_content + inline_data is the current
+    Developer-API-compatible path Google's own SDK deprecation notice points
+    to (see the ExperimentalWarning on generate_images)."""
     if not settings.gemini_api_key:
         raise LLMError("GEMINI_API_KEY is not set. Copy .env.example to .env and fill it in.")
     try:
         from google import genai
-        from google.genai import types
     except ImportError as exc:  # pragma: no cover
         raise LLMError("google-genai is not installed. pip install -r requirements.txt") from exc
 
     client = genai.Client(api_key=settings.gemini_api_key)
     try:
-        response = client.models.generate_images(
-            model=settings.gemini_image_model,
-            prompt=prompt,
-            config=types.GenerateImagesConfig(number_of_images=1),
-        )
+        response = client.models.generate_content(model=settings.gemini_image_model, contents=prompt)
     except Exception as exc:  # pragma: no cover - network path
         raise LLMError(f"Gemini image call failed: {exc}") from exc
 
-    generated = getattr(response, "generated_images", None) or []
-    image_bytes = generated[0].image.image_bytes if generated and generated[0].image else None
+    candidates = getattr(response, "candidates", None) or []
+    image_bytes = None
+    for candidate in candidates:
+        for part in getattr(candidate.content, "parts", None) or []:
+            inline = getattr(part, "inline_data", None)
+            if inline is not None and inline.data:
+                image_bytes = inline.data
+                break
+        if image_bytes:
+            break
     if not image_bytes:
         raise LLMError("Gemini returned no image data.")
     return image_bytes
