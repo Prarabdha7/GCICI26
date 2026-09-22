@@ -114,6 +114,15 @@ def test_assemble_video_never_crashes_on_veo_failure_with_no_key(tmp_output_dir)
 # --------------------------------------------------------------------------- #
 
 
+def test_veo_prompt_puts_the_actual_script_before_brand_identity() -> None:
+    """Regression guard, same issue as _image_prompt: an off-niche script
+    must not get drowned out by the brand's niche/name leading the prompt."""
+    prompt = assembly._veo_prompt("The new iPhone: faster, brighter, unbreakable.", "Jade")
+
+    assert prompt.index("iPhone") < prompt.index("Jewellers Block Insurance")
+    assert prompt.startswith("The new iPhone")
+
+
 def test_video_call_unknown_provider_raises() -> None:
     from app.llm.client import LLMError, video_call
 

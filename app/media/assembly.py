@@ -201,13 +201,18 @@ def render_caption_card(
 
 
 def _veo_prompt(script: str, brand: str) -> str:
+    """Same subject-first ordering as app.graph.nodes._image_prompt: the
+    actual script leads, brand identity trails as a style modifier, so an
+    off-niche topic doesn't just render as generic brand-niche footage."""
     from app.agents.brand_knowledge import get_brand
 
     info = get_brand(brand)
+    subject = (script or "").strip()[:300] or f"{info['niche']} marketing reel"
     return (
-        f"A short vertical marketing reel for {info['name']} ({info['niche']}). "
-        f"Brand voice: {info['voice']}. Voiceover/on-screen action conveys: {script[:300]}. "
-        "No on-screen text overlays, no logos, cinematic, suitable for Instagram/TikTok."
+        f"{subject} "
+        f"Style: short vertical marketing reel for {info['name']}, a {info['niche']} brand. "
+        f"Voice: {info['voice']}. No on-screen text overlays, no logos, cinematic, "
+        "suitable for Instagram/TikTok."
     )
 
 

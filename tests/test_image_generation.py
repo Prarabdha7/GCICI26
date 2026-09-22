@@ -31,6 +31,28 @@ def tmp_output_dir(tmp_path) -> Path:
 
 
 # --------------------------------------------------------------------------- #
+# _image_prompt: subject leads, brand identity trails
+# --------------------------------------------------------------------------- #
+
+
+def test_image_prompt_puts_the_actual_draft_before_brand_identity() -> None:
+    """Regression guard: leading with "for {brand} ({niche})" dominated
+    keyword-driven image models (confirmed live via Pollinations) regardless
+    of what the draft actually said -- an off-niche draft (e.g. a phone ad)
+    still rendered as generic brand-niche imagery. The draft must appear
+    before the brand's niche/name in the prompt."""
+    prompt = nodes_module._image_prompt("Jade", "The new iPhone: faster, brighter, unbreakable.")
+
+    assert prompt.index("iPhone") < prompt.index("Jewellers Block Insurance")
+    assert prompt.startswith("The new iPhone")
+
+
+def test_image_prompt_falls_back_to_niche_when_draft_is_empty() -> None:
+    prompt = nodes_module._image_prompt("Jade", "")
+    assert "Jewellers Block Insurance" in prompt
+
+
+# --------------------------------------------------------------------------- #
 # generate_image
 # --------------------------------------------------------------------------- #
 
