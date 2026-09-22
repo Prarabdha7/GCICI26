@@ -1,15 +1,36 @@
 {% extends "base.html" %}
 {% block title %}Metrics — JA Assure Review{% endblock %}
 {% block content %}
-<h2>Metrics</h2>
+<hgroup>
+    <h2>Metrics</h2>
+    <p>Evidence the closed-loop memory engine is actually learning.</p>
+</hgroup>
 <div class="grid">
-    <article><h3>Rejection rate</h3><p class="metric-value">{{ (rejection_rate * 100)|round(1) }}%</p></article>
-    <article><h3>Avg retries / asset</h3><p class="metric-value">{{ avg_retries }}</p></article>
-    <article><h3>Feedback entries</h3><p class="metric-value">{{ feedback_entries }}</p></article>
-    <article><h3>Leads</h3><p class="metric-value">{{ leads }}</p></article>
+    <article>
+        <p class="metric-caption">Rejection rate</p>
+        <p class="metric-value">{{ (rejection_rate * 100)|round(1) }}%</p>
+    </article>
+    <article>
+        <p class="metric-caption">Avg retries / asset</p>
+        <p class="metric-value">{{ avg_retries }}</p>
+    </article>
+    <article>
+        <p class="metric-caption">Feedback entries</p>
+        <p class="metric-value">{{ feedback_entries }}</p>
+    </article>
+    <article>
+        <p class="metric-caption">Leads</p>
+        <p class="metric-value">{{ leads }}</p>
+    </article>
 </div>
-<h3>By status</h3>
-<ul>
-    {% for status, count in by_status.items() %}<li>{{ status }}: {{ count }}</li>{% else %}<li><em>No data yet.</em></li>{% endfor %}
-</ul>
+<article>
+    <h3>By status</h3>
+    <ul>
+        {% for status, count in by_status.items() %}
+        <li><span class="badge badge-{{ status }}">{{ status }}</span> &nbsp;{{ count }}</li>
+        {% else %}
+        <li><em>No data yet.</em></li>
+        {% endfor %}
+    </ul>
+</article>
 {% endblock %}

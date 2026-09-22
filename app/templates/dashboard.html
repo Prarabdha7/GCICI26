@@ -1,10 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Queue — JA Assure Review{% endblock %}
 {% block content %}
-<h2>Pending Queue ({{ items|length }})</h2>
+<hgroup>
+    <h2>Pending Queue <small>({{ items|length }})</small></h2>
+    <p>Drafts awaiting your approve / edit / reject decision.</p>
+</hgroup>
 <table>
     <thead>
-        <tr><th>Brand</th><th>Platform</th><th>Language</th><th>Draft</th><th>Retries</th><th>Actions</th></tr>
+        <tr><th>Brand</th><th>Platform</th><th>Language</th><th>Draft</th><th>Retries</th><th style="width: 1%;">Actions</th></tr>
     </thead>
     <tbody id="queue-body">
         {% for item in items %}

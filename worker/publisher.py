@@ -28,11 +28,14 @@ class BasePublisher(ABC):
 
 
 def _public_media_url(item: ContentQueue) -> str | None:
-    """media_path is a local filesystem path; the posting API needs a URL it
-    can fetch. Without PUBLIC_MEDIA_BASE_URL configured, media is skipped."""
+    """media_path is a local filesystem path or an already-relative /static/
+    URL; the posting API needs an absolute URL it can fetch. Files are served
+    from app.main's `/static` mount (assets/generated/), so the public URL is
+    always PUBLIC_MEDIA_BASE_URL + /static/ + filename. Without
+    PUBLIC_MEDIA_BASE_URL configured, media is skipped."""
     if not item.media_path or not settings.public_media_base_url:
         return None
-    return f"{settings.public_media_base_url.rstrip('/')}/{Path(item.media_path).name}"
+    return f"{settings.public_media_base_url.rstrip('/')}/static/{Path(item.media_path).name}"
 
 
 class BufferPublisher(BasePublisher):

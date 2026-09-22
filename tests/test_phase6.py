@@ -249,3 +249,71 @@ def test_rejection_is_retrievable_by_memory_engine(client) -> None:
         entries = get_recent_feedback(db, brand="Jade", platform="tiktok")
 
     assert any(e.human_note == "Reads like an ad, not a story." for e in entries)
+
+
+# --------------------------------------------------------------------------- #
+# Static media serving (Phase 8): /static mount and detail-page embedding
+# --------------------------------------------------------------------------- #
+
+
+def test_media_url_none_without_media_path() -> None:
+    from app.api.dashboard import _media_url_for_display
+
+    item = ContentQueue(brand="Jade", platform="linkedin", language="en", draft_content="x")
+    assert _media_url_for_display(item) is None
+
+
+def test_media_url_passthrough_for_already_static_path() -> None:
+    from app.api.dashboard import _media_url_for_display
+
+    item = ContentQueue(
+        brand="Jade", platform="linkedin", language="en", draft_content="x",
+        media_path="/static/sample.mp4",
+    )
+    assert _media_url_for_display(item) == "/static/sample.mp4"
+
+
+def test_media_url_resolves_local_file_under_generated_dir() -> None:
+    from app.api.dashboard import _media_url_for_display
+    from app.config import settings
+
+    local_path = settings.generated_dir / "reel_abc123.mp4"
+    item = ContentQueue(
+        brand="Jade", platform="linkedin", language="en", draft_content="x",
+        media_path=str(local_path),
+    )
+    assert _media_url_for_display(item) == "/static/reel_abc123.mp4"
+
+
+def test_media_url_none_for_a_path_outside_generated_dir() -> None:
+    from app.api.dashboard import _media_url_for_display
+
+    item = ContentQueue(
+        brand="Jade", platform="linkedin", language="en", draft_content="x",
+        media_path="/some/other/machine/reel.mp4",
+    )
+    assert _media_url_for_display(item) is None
+
+
+def test_queue_detail_embeds_video_when_media_is_servable(client) -> None:
+    with session_scope() as db:
+        row = _seed_queue_row(db, media_path="/static/sample.mp4")
+        content_id = row.id
+
+    response = client.get(f"/dashboard/queue/{content_id}")
+
+    assert '<video controls' in response.text
+    assert "/static/sample.mp4" in response.text
+
+
+def test_static_mount_serves_a_real_file(client) -> None:
+    from app.config import settings
+
+    probe = settings.generated_dir / "test_probe.txt"
+    probe.write_text("ok")
+    try:
+        response = client.get("/static/test_probe.txt")
+        assert response.status_code == 200
+        assert response.text == "ok"
+    finally:
+        probe.unlink()
