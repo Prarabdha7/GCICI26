@@ -212,9 +212,10 @@ def render_brand_visual(
         draw.text((pad_x + 50, y_cur), subtitle[:120], fill=(203, 213, 225))
 
     # Footer
-    draw.text((pad_x + 50, H - pad_y - 70), "MAS Notice 318 Compliant  |  Direct InsurTech Specialist", fill=(148, 163, 184))
+    draw.text(
+        (pad_x + 50, H - pad_y - 70), "MAS Notice 318 Compliant  |  Direct InsurTech Specialist", fill=(148, 163, 184)
+    )
 
     path = output_dir / f"brand_{uuid.uuid4().hex[:12]}.png"
     img.save(path)
     return path
-

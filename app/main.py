@@ -36,6 +36,7 @@ is_testing = "pytest" in sys.modules or os.getenv("TESTING") == "true"
 if agentops_key and agentops_key not in ("", "your_key_here") and not is_testing:
     try:
         import agentops
+
         agentops.init(api_key=agentops_key, default_tags=["ja-assure"])
     except Exception:
         pass
@@ -83,10 +84,10 @@ async def lifespan(app: FastAPI):
         # exit cleanly rather than propagating an exception through the ASGI
         # lifespan handler.
         import contextlib
+
         with contextlib.suppress(Exception):
             scheduler.shutdown(wait=False)
     log.info("Shutting down.")
-
 
 
 app = FastAPI(
@@ -120,6 +121,7 @@ app.include_router(dashboard_router)
 def root_redirect():
     """Redirect incoming root path requests to the primary single-page application."""
     from fastapi.responses import RedirectResponse
+
     return RedirectResponse(url="/app/")
 
 

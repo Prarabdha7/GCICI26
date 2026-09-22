@@ -32,8 +32,12 @@ SAMPLE_MEDIA_URL = "/static/sample.mp4"
 # Approve action, live, like real content would.
 PENDING_ROWS = [
     dict(
-        brand="Jade", platform="instagram", language="en", content_type="post",
-        status=ContentStatus.PENDING.value, media_path=SAMPLE_MEDIA_URL,
+        brand="Jade",
+        platform="instagram",
+        language="en",
+        content_type="post",
+        status=ContentStatus.PENDING.value,
+        media_path=SAMPLE_MEDIA_URL,
         is_demo=True,
         draft_content=(
             "Discretion is not a discount. Jade covers what your collection is "
@@ -42,8 +46,12 @@ PENDING_ROWS = [
         ),
     ),
     dict(
-        brand="Jaguar Transit", platform="linkedin", language="ms", content_type="post",
-        status=ContentStatus.PENDING.value, media_path=SAMPLE_MEDIA_URL,
+        brand="Jaguar Transit",
+        platform="linkedin",
+        language="ms",
+        content_type="post",
+        status=ContentStatus.PENDING.value,
+        media_path=SAMPLE_MEDIA_URL,
         is_demo=True,
         draft_content=(
             "Satu kelewatan serah boleh menelan kos lebih daripada nilai barang "
@@ -53,8 +61,12 @@ PENDING_ROWS = [
         ),
     ),
     dict(
-        brand="DoctorShield", platform="linkedin", language="th", content_type="post",
-        status=ContentStatus.PENDING.value, media_path=SAMPLE_MEDIA_URL,
+        brand="DoctorShield",
+        platform="linkedin",
+        language="th",
+        content_type="post",
+        status=ContentStatus.PENDING.value,
+        media_path=SAMPLE_MEDIA_URL,
         is_demo=True,
         draft_content=(
             "การตัดสินใจทางคลินิกเป็นของคุณ ความเสี่ยงทางการเงินจากการเรียกร้องค่าสินไหม "
@@ -67,13 +79,14 @@ PENDING_ROWS = [
 # -- manual_intervention: circuit-breaker casualties for that dashboard tab --
 MANUAL_INTERVENTION_ROWS = [
     dict(
-        brand="Jaguar Transit", platform="tiktok", language="en", content_type="post",
-        status=ContentStatus.MANUAL_INTERVENTION.value, retry_count=4,
+        brand="Jaguar Transit",
+        platform="tiktok",
+        language="en",
+        content_type="post",
+        status=ContentStatus.MANUAL_INTERVENTION.value,
+        retry_count=4,
         is_demo=True,
-        draft_content=(
-            "Nothing you ship will ever go missing with Jaguar Transit — 100% "
-            "guaranteed, always approved."
-        ),
+        draft_content=("Nothing you ship will ever go missing with Jaguar Transit — 100% guaranteed, always approved."),
         compliance_errors=[
             "Uses '100% guaranteed' and 'always approved', both banned words (Rubric 4).",
             "Implies zero loss is possible, violating the Jaguar Transit brand "
@@ -81,15 +94,16 @@ MANUAL_INTERVENTION_ROWS = [
         ],
     ),
     dict(
-        brand="DoctorShield", platform="instagram", language="th", content_type="post",
-        status=ContentStatus.MANUAL_INTERVENTION.value, retry_count=5,
+        brand="DoctorShield",
+        platform="instagram",
+        language="th",
+        content_type="post",
+        status=ContentStatus.MANUAL_INTERVENTION.value,
+        retry_count=5,
         is_demo=True,
-        draft_content=(
-            "แพทย์ทุกคนที่ถือ DoctorShield จะไม่มีวันถูกฟ้องร้องเรื่องการรักษาที่ผิดพลาดอีกต่อไป"
-        ),
+        draft_content=("แพทย์ทุกคนที่ถือ DoctorShield จะไม่มีวันถูกฟ้องร้องเรื่องการรักษาที่ผิดพลาดอีกต่อไป"),
         compliance_errors=[
-            "Promises immunity from malpractice lawsuits, violating the "
-            "DoctorShield brand constraint (Rubric 2).",
+            "Promises immunity from malpractice lawsuits, violating the DoctorShield brand constraint (Rubric 2).",
             "No mandatory disclaimer present (Rubric 3).",
         ],
     ),
@@ -101,13 +115,17 @@ CONTENT_QUEUE_ROWS = PENDING_ROWS + MANUAL_INTERVENTION_ROWS
 # get_recent_feedback() has something to surface for exactly what's on screen --
 FEEDBACK_MEMORY_ROWS = [
     dict(
-        brand="Jade", platform="instagram", error_tag="too_salesy",
+        brand="Jade",
+        platform="instagram",
+        error_tag="too_salesy",
         is_demo=True,
         human_note="Read like a discount ad — Jade never discounts. Reframe "
         "around craftsmanship and discretion, not price.",
     ),
     dict(
-        brand="Jaguar Transit", platform="linkedin", error_tag="wrong_cta",
+        brand="Jaguar Transit",
+        platform="linkedin",
+        error_tag="wrong_cta",
         is_demo=True,
         human_note="CTA said 'Buy now' — B2B logistics buyers don't respond to "
         "that register. Use 'Request a risk assessment' instead.",
@@ -116,9 +134,13 @@ FEEDBACK_MEMORY_ROWS = [
 
 LEAD_ROWS = [
     dict(
-        company_name="Marina Bay Fine Jewellers", contact_name="Priya Nair",
-        email="priya@marinabayjewellers.sg", website="https://marinabayjewellers.sg",
-        country="Singapore", segment="jeweller", target_brand="Jade",
+        company_name="Marina Bay Fine Jewellers",
+        contact_name="Priya Nair",
+        email="priya@marinabayjewellers.sg",
+        website="https://marinabayjewellers.sg",
+        country="Singapore",
+        segment="jeweller",
+        target_brand="Jade",
         fit_score=88,
         is_demo=True,
         score_rationale="High-value retail jeweller in the CBD with no visible "
@@ -129,9 +151,13 @@ LEAD_ROWS = [
         status=LeadStatus.DRAFTED.value,
     ),
     dict(
-        company_name="KL Express Logistics", contact_name="Aiman Rahman",
-        email="aiman@klexpress.my", website="https://klexpress.my",
-        country="Malaysia", segment="courier", target_brand="Jaguar Transit",
+        company_name="KL Express Logistics",
+        contact_name="Aiman Rahman",
+        email="aiman@klexpress.my",
+        website="https://klexpress.my",
+        country="Malaysia",
+        segment="courier",
+        target_brand="Jaguar Transit",
         fit_score=76,
         is_demo=True,
         score_rationale="Mid-size courier fleet expanding into cross-border "
@@ -142,9 +168,13 @@ LEAD_ROWS = [
         status=LeadStatus.DRAFTED.value,
     ),
     dict(
-        company_name="Dr. Tan Family Clinic", contact_name="Dr. Michelle Tan",
-        email="clinic@drtanfamily.sg", website="https://drtanfamily.sg",
-        country="Singapore", segment="clinic", target_brand="DoctorShield",
+        company_name="Dr. Tan Family Clinic",
+        contact_name="Dr. Michelle Tan",
+        email="clinic@drtanfamily.sg",
+        website="https://drtanfamily.sg",
+        country="Singapore",
+        segment="clinic",
+        target_brand="DoctorShield",
         fit_score=82,
         is_demo=True,
         score_rationale="Solo GP practice, no indemnity provider named publicly; "
@@ -170,7 +200,8 @@ def _ensure_sample_media() -> None:
 
         generated = assemble_video(
             script="JA Assure. Coverage that understands your business.",
-            language="en", output_dir=settings.generated_dir,
+            language="en",
+            output_dir=settings.generated_dir,
         )
         generated.rename(sample_path)
         log.info("Generated sample media at %s", sample_path)

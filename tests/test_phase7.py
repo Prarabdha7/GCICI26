@@ -23,8 +23,11 @@ def _fake_response(json_data: dict, status_code: int = 200) -> httpx.Response:
 
 def _seed_queue_row(db, **overrides) -> ContentQueue:
     fields = {
-        "brand": "Jade", "platform": "linkedin", "language": "en",
-        "draft_content": "draft copy", "status": ContentStatus.APPROVED.value,
+        "brand": "Jade",
+        "platform": "linkedin",
+        "language": "en",
+        "draft_content": "draft copy",
+        "status": ContentStatus.APPROVED.value,
     }
     fields.update(overrides)
     row = ContentQueue(**fields)
@@ -41,7 +44,8 @@ def _seed_queue_row(db, **overrides) -> ContentQueue:
 
 def test_buffer_publisher_returns_post_id(monkeypatch) -> None:
     monkeypatch.setattr(
-        publisher_module.httpx, "post",
+        publisher_module.httpx,
+        "post",
         lambda *a, **kw: _fake_response({"data": {"createPost": {"id": "buf-1"}}}),
     )
     item = ContentQueue(brand="Jade", platform="linkedin", language="en", draft_content="hello")
@@ -59,7 +63,8 @@ def test_buffer_publisher_requires_access_token() -> None:
 
 def test_buffer_publisher_raises_on_graphql_errors(monkeypatch) -> None:
     monkeypatch.setattr(
-        publisher_module.httpx, "post",
+        publisher_module.httpx,
+        "post",
         lambda *a, **kw: _fake_response({"errors": [{"message": "bad channel"}]}),
     )
     item = ContentQueue(brand="Jade", platform="linkedin", language="en", draft_content="hello")
@@ -73,7 +78,8 @@ def test_buffer_publisher_translates_http_error_status_into_publisher_error(monk
     from Buffer's actual API — raise_for_status() must not escape as a raw
     httpx.HTTPStatusError, or it crashes the whole scheduler job unhandled."""
     monkeypatch.setattr(
-        publisher_module.httpx, "post",
+        publisher_module.httpx,
+        "post",
         lambda *a, **kw: _fake_response({"error": "invalid token"}, status_code=401),
     )
     item = ContentQueue(brand="Jade", platform="linkedin", language="en", draft_content="hello")
@@ -91,8 +97,11 @@ def test_buffer_publisher_prefers_final_content_over_draft(monkeypatch) -> None:
 
     monkeypatch.setattr(publisher_module.httpx, "post", fake_post)
     item = ContentQueue(
-        brand="Jade", platform="linkedin", language="en",
-        draft_content="original", final_content="edited",
+        brand="Jade",
+        platform="linkedin",
+        language="en",
+        draft_content="original",
+        final_content="edited",
     )
 
     publisher_module.BufferPublisher(access_token="key").publish(item)
@@ -107,7 +116,8 @@ def test_buffer_publisher_prefers_final_content_over_draft(monkeypatch) -> None:
 
 def test_ayrshare_publisher_returns_post_id(monkeypatch) -> None:
     monkeypatch.setattr(
-        publisher_module.httpx, "post",
+        publisher_module.httpx,
+        "post",
         lambda *a, **kw: _fake_response({"postIds": [{"id": "ayr-1"}]}),
     )
     item = ContentQueue(brand="Jade", platform="instagram", language="en", draft_content="hello")
@@ -151,7 +161,8 @@ def test_ayrshare_publisher_raises_without_post_ids(monkeypatch) -> None:
 
 def test_ayrshare_publisher_translates_http_error_status_into_publisher_error(monkeypatch) -> None:
     monkeypatch.setattr(
-        publisher_module.httpx, "post",
+        publisher_module.httpx,
+        "post",
         lambda *a, **kw: _fake_response({"error": "invalid token"}, status_code=401),
     )
     item = ContentQueue(brand="Jade", platform="instagram", language="en", draft_content="hello")

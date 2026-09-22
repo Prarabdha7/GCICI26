@@ -153,7 +153,9 @@ def test_assemble_video_uses_pexels_when_veo_fails_and_no_background_given(monke
 
     monkeypatch.setattr("app.llm.client.video_call", lambda **kw: (_ for _ in ()).throw(LLMError("no key")))
     monkeypatch.setattr(assembly, "AudioFileClip", _FakeAudioClip)
-    monkeypatch.setattr(assembly, "ColorClip", lambda size, color, duration: _FakeVideoClip(size=size, color=color, duration=duration))
+    monkeypatch.setattr(
+        assembly, "ColorClip", lambda size, color, duration: _FakeVideoClip(size=size, color=color, duration=duration)
+    )
     monkeypatch.setattr(assembly, "VideoFileClip", lambda path: _FakeVideoClip(source=path))
     monkeypatch.setattr(assembly.edge_tts, "Communicate", _FakeCommunicate)
 
@@ -183,7 +185,9 @@ def test_assemble_video_falls_back_to_color_clip_when_pexels_also_fails(monkeypa
 
     monkeypatch.setattr("app.llm.client.video_call", lambda **kw: (_ for _ in ()).throw(LLMError("no key")))
     monkeypatch.setattr(assembly, "AudioFileClip", _FakeAudioClip)
-    monkeypatch.setattr(assembly, "ColorClip", lambda size, color, duration: _FakeVideoClip(size=size, color=color, duration=duration))
+    monkeypatch.setattr(
+        assembly, "ColorClip", lambda size, color, duration: _FakeVideoClip(size=size, color=color, duration=duration)
+    )
     monkeypatch.setattr(assembly, "VideoFileClip", lambda path: _FakeVideoClip(source=path))
     monkeypatch.setattr(assembly.edge_tts, "Communicate", _FakeCommunicate)
     # _no_live_pexels (conftest) already mocks fetch_stock_video closed

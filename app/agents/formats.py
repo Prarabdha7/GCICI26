@@ -34,9 +34,7 @@ def _offline_pack(draft: str, brand: str) -> dict:
     while len(sentences) < 5:
         sentences.append(f"{brand} cover detail {len(sentences) + 1}. Terms apply.")
     thread = [f"{i + 1}/ {s[:240]}" for i, s in enumerate(sentences[:5])]
-    carousel = [
-        f"Slide {i + 1}: {s[:120]}" for i, s in enumerate(sentences[:5])
-    ]
+    carousel = [f"Slide {i + 1}: {s[:120]}" for i, s in enumerate(sentences[:5])]
     return {
         "linkedin": base[:900],
         "thread": thread,
@@ -53,11 +51,15 @@ def focus_group_notes(draft: str, brand: str) -> list[str]:
     b = (brand or "").lower()
     notes = []
     if "doctor" in b or "shield" in b:
-        notes.append("[DEMO persona] Dr. Kevin Lim (surgeon): avoid 'malpractice', say 'inquiry/defence'; keep peer tone.")
+        notes.append(
+            "[DEMO persona] Dr. Kevin Lim (surgeon): avoid 'malpractice', say 'inquiry/defence'; keep peer tone."
+        )
     else:
         notes.append("[DEMO persona] Dr. Kevin Lim: n/a for non-medical brand.")
     if "jade" in b:
-        notes.append("[DEMO persona] Madam Chen (goldsmith): demand memo-goods + discretion wording; no safe-grade details.")
+        notes.append(
+            "[DEMO persona] Madam Chen (goldsmith): demand memo-goods + discretion wording; no safe-grade details."
+        )
     else:
         notes.append("[DEMO persona] Madam Chen: discretion angle added.")
     if "jaguar" in b or "transit" in b:

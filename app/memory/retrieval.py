@@ -17,7 +17,6 @@ Injection contract (referenced in CLAUDE.md section 5):
 The complementary write side lives in ``app.memory.store``.
 """
 
-
 from __future__ import annotations
 
 from sqlalchemy import select
@@ -27,9 +26,7 @@ from app.config import settings
 from app.db.models import FeedbackMemory
 
 
-def get_recent_feedback(
-    db: Session, *, brand: str, platform: str, limit: int | None = None
-) -> list[FeedbackMemory]:
+def get_recent_feedback(db: Session, *, brand: str, platform: str, limit: int | None = None) -> list[FeedbackMemory]:
     """Retrieve the most recent feedback rows for a brand/platform pair, newest first.
 
     Executes a filtered, ordered, and limited SELECT against the
@@ -90,4 +87,3 @@ def format_guidance(entries: list[FeedbackMemory]) -> str:
         "CRITICAL GUIDANCE: Previously, human reviewers rejected content for "
         f"this brand due to: {notes}. You MUST NOT repeat these mistakes."
     )
-

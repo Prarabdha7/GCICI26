@@ -1,6 +1,6 @@
 """Phase 6 tests: the review dashboard and closed-loop memory storage.
 
-    pytest tests/test_phase6.py -v
+pytest tests/test_phase6.py -v
 """
 
 from __future__ import annotations
@@ -23,8 +23,11 @@ def client():
 
 def _seed_queue_row(db: Session, **overrides) -> ContentQueue:
     fields = {
-        "brand": "Jade", "platform": "linkedin", "language": "en",
-        "draft_content": "draft copy", "status": ContentStatus.PENDING.value,
+        "brand": "Jade",
+        "platform": "linkedin",
+        "language": "en",
+        "draft_content": "draft copy",
+        "status": ContentStatus.PENDING.value,
     }
     fields.update(overrides)
     row = ContentQueue(**fields)
@@ -42,8 +45,12 @@ def _seed_queue_row(db: Session, **overrides) -> ContentQueue:
 def test_create_feedback_entry_writes_a_row() -> None:
     with session_scope() as db:
         entry = create_feedback_entry(
-            db, brand="Jade", platform="linkedin", error_tag="too_salesy",
-            human_note="Reads like a pitch.", content_id=None,
+            db,
+            brand="Jade",
+            platform="linkedin",
+            error_tag="too_salesy",
+            human_note="Reads like a pitch.",
+            content_id=None,
         )
         assert entry.id is not None
 
@@ -58,8 +65,12 @@ def test_create_feedback_entry_links_content_id() -> None:
     with session_scope() as db:
         queue_row = _seed_queue_row(db)
         entry = create_feedback_entry(
-            db, brand=queue_row.brand, platform=queue_row.platform,
-            error_tag="wrong_cta", human_note="CTA mismatched.", content_id=queue_row.id,
+            db,
+            brand=queue_row.brand,
+            platform=queue_row.platform,
+            error_tag="wrong_cta",
+            human_note="CTA mismatched.",
+            content_id=queue_row.id,
         )
         assert entry.content_id == queue_row.id
 
@@ -90,7 +101,9 @@ def test_dashboard_home_excludes_non_pending_items(client) -> None:
 
 def test_manual_intervention_view_lists_only_breaker_trips(client) -> None:
     with session_scope() as db:
-        _seed_queue_row(db, draft_content="unique-manual-marker", status=ContentStatus.MANUAL_INTERVENTION.value, retry_count=4)
+        _seed_queue_row(
+            db, draft_content="unique-manual-marker", status=ContentStatus.MANUAL_INTERVENTION.value, retry_count=4
+        )
         _seed_queue_row(db, draft_content="unique-pending-marker-2", status=ContentStatus.PENDING.value)
 
     response = client.get("/dashboard/manual-intervention")
@@ -155,9 +168,7 @@ def test_approve_from_detail_context_sends_hx_redirect(client) -> None:
         row = _seed_queue_row(db)
         content_id = row.id
 
-    response = client.post(
-        f"/dashboard/queue/{content_id}/approve", headers={"HX-Target": "detail-actions"}
-    )
+    response = client.post(f"/dashboard/queue/{content_id}/approve", headers={"HX-Target": "detail-actions"})
 
     assert response.headers.get("HX-Redirect") == "/dashboard"
 
@@ -300,7 +311,7 @@ def test_queue_detail_embeds_video_when_media_is_servable(client) -> None:
 
     response = client.get(f"/dashboard/queue/{content_id}")
 
-    assert '<video controls' in response.text
+    assert "<video controls" in response.text
     assert "/static/sample.mp4" in response.text
 
 
@@ -333,7 +344,11 @@ def test_api_draft_script_medical(client) -> None:
     assert res.status_code == 200
     data = res.json()
     assert data["ok"] is True
-    assert "DoctorShield" in data["voiceover_script"] or "clinical" in data["voiceover_script"].lower() or "practice" in data["voiceover_script"].lower()
+    assert (
+        "DoctorShield" in data["voiceover_script"]
+        or "clinical" in data["voiceover_script"].lower()
+        or "practice" in data["voiceover_script"].lower()
+    )
 
 
 def test_api_draft_script_cargo(client) -> None:
@@ -341,7 +356,11 @@ def test_api_draft_script_cargo(client) -> None:
     assert res.status_code == 200
     data = res.json()
     assert data["ok"] is True
-    assert "Jaguar Transit" in data["voiceover_script"] or "cargo" in data["voiceover_script"].lower() or "freight" in data["voiceover_script"].lower()
+    assert (
+        "Jaguar Transit" in data["voiceover_script"]
+        or "cargo" in data["voiceover_script"].lower()
+        or "freight" in data["voiceover_script"].lower()
+    )
 
 
 def test_api_synthesize_speech(client) -> None:
@@ -363,4 +382,3 @@ def test_api_perception_scrape_live_search(client) -> None:
     assert "Jade" in data["counter_positioning_hook"]
     assert "crawl_telemetry" in data
     assert data["crawl_telemetry"]["tokens_consumed"] == 0
-

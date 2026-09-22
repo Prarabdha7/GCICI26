@@ -100,7 +100,6 @@ Welcome to the centralized **Second Brain** for JA Assure's multi-agent autonomo
 - [[Carousel-Format]]: Multi-slide educational breakdown format.
 - [[Video-Reel]]: 1080x1920 high-fidelity vertical video reels.
 """,
-
         # =========================================================================
         # BRANDS
         # =========================================================================
@@ -131,7 +130,6 @@ underwriting_spec: "[[Jewellery-Block-Underwriting]]"
 - Content Agent Persona: [[Content-Agent]]
 - Memory Rules: [[DSPy-GEPA-Evolution]]
 """,
-
         "Brands/DoctorShield.md": """---
 title: DoctorShield — Medical Malpractice & Clinical Indemnity
 tags: [brand, medical, indemnity, malpractice, underwriting]
@@ -159,7 +157,6 @@ underwriting_spec: "[[Medical-Malpractice-Indemnity]]"
 - Content Agent Persona: [[Content-Agent]]
 - Active Learned Rules: [[Tier-2-Mem0-Buffer]]
 """,
-
         "Brands/Jaguar-Transit.md": """---
 title: Jaguar Transit — High-Value Multi-Modal Cargo Indemnity
 tags: [brand, logistics, transit, cargo, underwriting]
@@ -186,7 +183,6 @@ underwriting_spec: "[[Marine-Cargo-Transit]]"
 - Primary Channels: [[LinkedIn]], [[TikTok]], and [[Video-Reel]]
 - Video Engine: [[Video-Assembly-Veo]]
 """,
-
         # =========================================================================
         # UNDERWRITING
         # =========================================================================
@@ -208,7 +204,6 @@ Bespoke risk assessment criteria governing marketing claims for [[Jade]].
 
 Connected entities: [[Jade]], [[Universal-Rubric]], [[MAS-Notice-318]], [[JA-Assure-Second-Brain]].
 """,
-
         "Underwriting/Medical-Malpractice-Indemnity.md": """---
 title: Medical Malpractice Indemnity Underwriting
 tags: [underwriting, medical, liability, malpractice]
@@ -227,7 +222,6 @@ Clinical liability parameters governing promotional communications for [[DoctorS
 
 Connected entities: [[DoctorShield]], [[HKIA-Guideline-27]], [[Universal-Rubric]], [[JA-Assure-Second-Brain]].
 """,
-
         "Underwriting/Marine-Cargo-Transit.md": """---
 title: Marine Cargo & Freight Transit Underwriting
 tags: [underwriting, cargo, freight, logistics]
@@ -246,7 +240,6 @@ Logistics indemnity constraints governing assets for [[Jaguar-Transit]].
 
 Connected entities: [[Jaguar-Transit]], [[Universal-Rubric]], [[BNM-FTFC]], [[JA-Assure-Second-Brain]].
 """,
-
         # =========================================================================
         # COMPLIANCE & REGULATORS
         # =========================================================================
@@ -283,7 +276,6 @@ Connected Jurisdictions:
 - [[OIC-Thailand]] (Thailand)
 - [[OJK-Indonesia]] (Indonesia)
 """,
-
         "Compliance/MAS-Notice-318.md": """---
 title: MAS Notice 318 & 321 — Market Conduct Guidelines (Singapore)
 tags: [compliance, jurisdiction, singapore, mas]
@@ -306,7 +298,6 @@ Issued by the Monetary Authority of Singapore (MAS) under the Insurance Act 1966
 
 Connected entities: [[Jade]], [[DoctorShield]], [[Universal-Rubric]], [[Compliance-Gate]].
 """,
-
         "Compliance/BNM-FTFC.md": """---
 title: BNM Fair Treatment of Financial Consumers (Malaysia)
 tags: [compliance, jurisdiction, malaysia, bnm]
@@ -329,7 +320,6 @@ Regulatory framework enforced by Bank Negara Malaysia under the Financial Servic
 
 Connected entities: [[Jaguar-Transit]], [[DoctorShield]], [[Universal-Rubric]], [[Compliance-Gate]].
 """,
-
         "Compliance/HKIA-Guideline-27.md": """---
 title: HKIA Guideline 27 & Intermediaries Code (Hong Kong)
 tags: [compliance, jurisdiction, hongkong, hkia]
@@ -351,7 +341,6 @@ Enforced by the Hong Kong Insurance Authority for market representations and med
 
 Connected entities: [[DoctorShield]], [[Jade]], [[Universal-Rubric]], [[Compliance-Gate]].
 """,
-
         "Compliance/OIC-Thailand.md": """---
 title: OIC Non-Life Insurance Act B.E. 2535 (Thailand)
 tags: [compliance, jurisdiction, thailand, oic]
@@ -372,7 +361,6 @@ Direct marketing rules under the Thai Non-Life Insurance Act B.E. 2535.
 
 Connected entities: [[Jaguar-Transit]], [[Universal-Rubric]], [[Compliance-Gate]].
 """,
-
         "Compliance/OJK-Indonesia.md": """---
 title: OJK POJK 22/2023 Consumer Protection (Indonesia)
 tags: [compliance, jurisdiction, indonesia, ojk]
@@ -393,7 +381,6 @@ Consumer protection regulations by Otoritas Jasa Keuangan (OJK).
 
 Connected entities: [[Jaguar-Transit]], [[Universal-Rubric]], [[Compliance-Gate]].
 """,
-
         # =========================================================================
         # PIPELINE NODES (PROJECT 1: THE BRAIN)
         # =========================================================================
@@ -433,7 +420,6 @@ Connected Pipeline Nodes:
 - [[Circuit-Breaker]]
 - [[Publisher-Worker]]
 """,
-
         "Pipeline/Memory-Retrieval-Agent.md": """---
 title: Memory Retrieval Agent
 tags: [pipeline, agent, memory, feedback]
@@ -452,7 +438,6 @@ Fetches the last 5 human edits and rejections from [[Tier-2-Mem0-Buffer]] before
 
 Connected entities: [[LangGraph-Engine]], [[Tier-2-Mem0-Buffer]], [[Content-Agent]].
 """,
-
         "Pipeline/Market-Research-Agent.md": """---
 title: Market Research Agent
 tags: [pipeline, agent, research, scraping]
@@ -471,7 +456,6 @@ Gathers real-time competitor intelligence and underwriting news via DuckDuckGo s
 
 Connected entities: [[LangGraph-Engine]], [[Content-Agent]].
 """,
-
         "Pipeline/Content-Agent.md": """---
 title: Content Generation Agent
 tags: [pipeline, agent, copywriter, llm]
@@ -491,7 +475,6 @@ Generates multi-format marketing copy grounded in brand personas, underwriting g
 
 Connected entities: [[LangGraph-Engine]], [[Localization-Agent]], [[Compliance-Gate]].
 """,
-
         "Pipeline/Localization-Agent.md": """---
 title: Localization Agent
 tags: [pipeline, agent, localization, multilingual]
@@ -512,7 +495,6 @@ Adapts draft copy to target jurisdictions across Southeast Asia.
 
 Connected entities: [[Content-Agent]], [[Compliance-Gate]], [[Video-Assembly-Veo]].
 """,
-
         "Pipeline/Compliance-Gate.md": """---
 title: Compliance Gate Node
 tags: [pipeline, agent, compliance, rubric, guardrail]
@@ -532,7 +514,6 @@ The statutory gatekeeper evaluating every marketing draft against [[Universal-Ru
 
 Connected entities: [[LangGraph-Engine]], [[Universal-Rubric]], [[Circuit-Breaker]].
 """,
-
         "Pipeline/Circuit-Breaker.md": """---
 title: Circuit Breaker & Retry Routing Policy
 tags: [pipeline, safety, routing, circuit-breaker]
@@ -556,7 +537,6 @@ else:
 
 Connected entities: [[LangGraph-Engine]], [[Compliance-Gate]], [[Manual-Intervention]].
 """,
-
         "Pipeline/Video-Assembly-Veo.md": """---
 title: Video Assembly & Veo Generative Video Engine
 tags: [pipeline, video, veo, media, reels]
@@ -575,7 +555,6 @@ Generates vertical 1080x1920 MP4 video reels for [[TikTok]] and [[Instagram]].
 
 Connected entities: [[LangGraph-Engine]], [[TikTok]], [[Instagram]], [[Video-Reel]].
 """,
-
         "Pipeline/Image-Generation.md": """---
 title: Image Generation Engine
 tags: [pipeline, image, gemini, pollinations, media]
@@ -594,7 +573,6 @@ Renders hero images and carousel slides.
 
 Connected entities: [[LangGraph-Engine]], [[Instagram]], [[Carousel-Format]].
 """,
-
         "Pipeline/Publisher-Worker.md": """---
 title: Publisher Worker & Social Media Dispatcher
 tags: [pipeline, worker, publisher, buffer, ayrshare]
@@ -613,7 +591,6 @@ Background worker polling approved queue items and dispatching to social media.
 
 Connected entities: [[LangGraph-Engine]], [[LinkedIn]], [[Instagram]], [[TikTok]].
 """,
-
         "Pipeline/Manual-Intervention.md": """---
 title: Manual Intervention & Human Review Queue
 tags: [pipeline, human-in-the-loop, review, safety]
@@ -630,7 +607,6 @@ Every human rejection or edit stores a memory record in [[Tier-2-Mem0-Buffer]], 
 
 Connected entities: [[Circuit-Breaker]], [[Tier-2-Mem0-Buffer]], [[LangGraph-Engine]].
 """,
-
         # =========================================================================
         # MEMORY HIERARCHY
         # =========================================================================
@@ -661,7 +637,6 @@ Modeled after modern operating system memory hierarchies to balance latency, rec
 
 Connected Hub: [[JA-Assure-Second-Brain]].
 """,
-
         "Memory/Tier-1-RAM-Context.md": """---
 title: Tier 1 — RAM Working Context
 tags: [memory, tier-1, ram, tokens]
@@ -674,7 +649,6 @@ The volatile LLM token context budget (typically 4,000–8,192 tokens) allocated
 
 Connected entities: [[3-Tier-Memory-OS]], [[Content-Agent]].
 """,
-
         "Memory/Tier-2-Mem0-Buffer.md": """---
 title: Tier 2 — Mem0 Recall Buffer
 tags: [memory, tier-2, mem0, semantic-recall]
@@ -687,7 +661,6 @@ Dynamic semantic cache of recent human interventions, rubric violations, and reg
 
 Connected entities: [[3-Tier-Memory-OS]], [[Memory-Retrieval-Agent]], [[Manual-Intervention]].
 """,
-
         "Memory/Tier-3-Archival-Vault.md": """---
 title: Tier 3 — Archival Disk Vault
 tags: [memory, tier-3, archival, disk, obsidian]
@@ -700,7 +673,6 @@ The durable on-disk knowledge graph maintained in this Obsidian vault. Contains 
 
 Connected entities: [[3-Tier-Memory-OS]], [[JA-Assure-Second-Brain]].
 """,
-
         "Memory/DSPy-GEPA-Evolution.md": """---
 title: DSPy Genetic-Pareto Prompt Evolution (GEPA)
 tags: [memory, dspy, gepa, prompt-optimization]
@@ -713,7 +685,6 @@ Optimization engine treating prompts as trainable parameters. Discovers Pareto-o
 
 Connected entities: [[3-Tier-Memory-OS]], [[Content-Agent]], [[Compliance-Gate]].
 """,
-
         # =========================================================================
         # CHANNELS
         # =========================================================================
@@ -730,7 +701,6 @@ Primary distribution channel for B2B risk managers, luxury boutique owners, and 
 Connected Brands: [[Jade]], [[DoctorShield]], [[Jaguar-Transit]].
 Connected Hub: [[JA-Assure-Second-Brain]].
 """,
-
         "Channels/Instagram.md": """---
 title: Instagram Channel Specifications
 tags: [channel, instagram, social, visual]
@@ -744,7 +714,6 @@ Visual storytelling platform featuring luxury jewellery showcases, aesthetic cli
 Connected Formats: [[Carousel-Format]], [[Video-Reel]], [[Image-Generation]].
 Connected Brands: [[Jade]], [[DoctorShield]].
 """,
-
         "Channels/TikTok.md": """---
 title: TikTok Channel Specifications
 tags: [channel, tiktok, video, reels]
@@ -758,7 +727,6 @@ High-engagement short-form video platform for dynamic logistics coverage, heist 
 Connected Formats: [[Video-Reel]], [[Video-Assembly-Veo]].
 Connected Brands: [[Jaguar-Transit]], [[Jade]].
 """,
-
         "Channels/Video-Reel.md": """---
 title: Video Reel Format Specifications
 tags: [channel, format, video, reel]
@@ -771,7 +739,6 @@ tier: Archival
 
 Produced by: [[Video-Assembly-Veo]].
 """,
-
         "Channels/Carousel-Format.md": """---
 title: Carousel Multi-Slide Format Specifications
 tags: [channel, format, carousel, instagram]
@@ -784,7 +751,6 @@ Multi-slide educational graphics format breaking down complex insurance exclusio
 
 Rendered by: [[Image-Generation]].
 """,
-
         # =========================================================================
         # COMPATIBILITY NOTES (MATCHING EXISTING SYSTEM DEFAULTS)
         # =========================================================================
@@ -804,7 +770,6 @@ Comprehensive underwriting specification for [[Jade]] luxury insurance.
 See full brand documentation at [[Jade]] and underwriting rules at [[Jewellery-Block-Underwriting]].
 Governed by [[MAS-Notice-318]] and evaluated by [[Compliance-Gate]].
 """,
-
         "MAS-Notice-318-Regulatory-Rubric.md": """---
 title: MAS Notice 318 Market Conduct Guidelines
 jurisdiction: Singapore
@@ -820,7 +785,6 @@ Detailed regulatory breakdown for Monetary Authority of Singapore requirements.
 
 See comprehensive statute at [[MAS-Notice-318]] and universal rubric at [[Universal-Rubric]].
 """,
-
         "DoctorShield-Medical-Liability.md": """---
 title: DoctorShield Medical Malpractice & Liability
 brand: DoctorShield
@@ -836,7 +800,6 @@ Specialized legal defence and indemnity for medical specialists.
 
 See full brand profile at [[DoctorShield]] and underwriting parameters at [[Medical-Malpractice-Indemnity]].
 """,
-
         "Jaguar-Transit-Marine-Cargo.md": """---
 title: Jaguar Transit Cross-Border Marine & Cargo
 brand: Jaguar Transit
@@ -852,7 +815,6 @@ Protection against maritime, aviation, and cross-border overland cargo hazards.
 
 See full brand profile at [[Jaguar-Transit]] and underwriting parameters at [[Marine-Cargo-Transit]].
 """,
-
         "DSPy-GEPA-Lessons-Learned.md": """---
 title: DSPy GEPA Prompt Evolution & Learned Constraints
 system: Memory Engine
@@ -911,8 +873,20 @@ def export_runs_from_database(vault_dir: Path) -> None:
         plat_slug = _safe_slug(plat_val)
         stat_slug = _safe_slug(status or "pending")
 
-        brand_link = "Jaguar-Transit" if "jaguar" in brand_val.lower() else ("DoctorShield" if "doctor" in brand_val.lower() else "Jade")
-        plat_link = "LinkedIn" if "link" in plat_val.lower() else ("Instagram" if "insta" in plat_val.lower() else ("TikTok" if "tik" in plat_val.lower() else plat_val.capitalize()))
+        brand_link = (
+            "Jaguar-Transit"
+            if "jaguar" in brand_val.lower()
+            else ("DoctorShield" if "doctor" in brand_val.lower() else "Jade")
+        )
+        plat_link = (
+            "LinkedIn"
+            if "link" in plat_val.lower()
+            else (
+                "Instagram"
+                if "insta" in plat_val.lower()
+                else ("TikTok" if "tik" in plat_val.lower() else plat_val.capitalize())
+            )
+        )
 
         slug = f"run-{cid:03d}-{brand_slug}-{plat_slug}"
         note_path = runs_folder / f"{slug}.md"

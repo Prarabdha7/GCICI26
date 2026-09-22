@@ -123,9 +123,25 @@ def publish_webhook(payload: WebhookPayload, db: Session = Depends(get_db)) -> d
     if payload.status == "published":
         item.status = ContentStatus.PUBLISHED.value
         item.published_at = dt.datetime.now(dt.UTC)
-    db.add(PublishEvent(content_id=item.id, event="webhook", provider="buffer", external_post_id=item.external_post_id, payload=payload.metrics or {}))
+    db.add(
+        PublishEvent(
+            content_id=item.id,
+            event="webhook",
+            provider="buffer",
+            external_post_id=item.external_post_id,
+            payload=payload.metrics or {},
+        )
+    )
     if payload.metrics:
-        db.add(PublishEvent(content_id=item.id, event="engagement", provider="webhook", external_post_id=item.external_post_id, payload=payload.metrics))
+        db.add(
+            PublishEvent(
+                content_id=item.id,
+                event="engagement",
+                provider="webhook",
+                external_post_id=item.external_post_id,
+                payload=payload.metrics,
+            )
+        )
     db.commit()
     return {"ok": True, "content_id": item.id, "status": item.status}
 
@@ -135,7 +151,16 @@ def publish_events(content_id: int, db: Session = Depends(get_db)) -> list[dict]
     rows = list(
         db.scalars(select(PublishEvent).where(PublishEvent.content_id == content_id).order_by(PublishEvent.created_at))
     )
-    return [{"event": r.event, "provider": r.provider, "external_post_id": r.external_post_id, "payload": r.payload or {}, "at": r.created_at.isoformat() if r.created_at else None} for r in rows]
+    return [
+        {
+            "event": r.event,
+            "provider": r.provider,
+            "external_post_id": r.external_post_id,
+            "payload": r.payload or {},
+            "at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
 
 
 def _lev(a: str, b: str) -> int:
@@ -155,7 +180,9 @@ def _lev(a: str, b: str) -> int:
 
 
 @router.get("/metrics/trend")
-def metrics_trend(db: Session = Depends(get_db), days: int = Query(default=14, ge=1, le=90), include_demo: bool = Query(default=False)) -> list[dict]:
+def metrics_trend(
+    db: Session = Depends(get_db), days: int = Query(default=14, ge=1, le=90), include_demo: bool = Query(default=False)
+) -> list[dict]:
     """Per-day learning curve over REAL rows (demo excluded unless include_demo=true)."""
     import datetime as dt
 
@@ -166,7 +193,7 @@ def metrics_trend(db: Session = Depends(get_db), days: int = Query(default=14, g
     rows = list(db.scalars(stmt.order_by(ContentQueue.created_at)))
     buckets: dict[str, list] = {}
     for r in rows:
-        key = (r.created_at.date().isoformat() if r.created_at else "undated")
+        key = r.created_at.date().isoformat() if r.created_at else "undated"
         buckets.setdefault(key, []).append(r)
     out = []
     for day in sorted(buckets):
@@ -176,13 +203,15 @@ def metrics_trend(db: Session = Depends(get_db), days: int = Query(default=14, g
         decided = approved + rejected
         dists = [_lev(r.draft_content or "", r.final_content or "") for r in items if r.final_content]
         retries = [r.retry_count or 0 for r in items]
-        out.append({
-            "date": day,
-            "created": len(items),
-            "approved": approved,
-            "rejected": rejected,
-            "rejection_rate": round(rejected / decided, 4) if decided else 0.0,
-            "avg_edit_distance": round(sum(dists) / len(dists), 1) if dists else 0.0,
-            "avg_retries": round(sum(retries) / len(retries), 2) if retries else 0.0,
-        })
+        out.append(
+            {
+                "date": day,
+                "created": len(items),
+                "approved": approved,
+                "rejected": rejected,
+                "rejection_rate": round(rejected / decided, 4) if decided else 0.0,
+                "avg_edit_distance": round(sum(dists) / len(dists), 1) if dists else 0.0,
+                "avg_retries": round(sum(retries) / len(retries), 2) if retries else 0.0,
+            }
+        )
     return out

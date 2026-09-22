@@ -24,7 +24,12 @@ BRANDS: dict[str, dict] = {
             "text": "#FDFBF7",
             "accent": "#2DD4BF",
         },
-        "risk_factors": ["Burglary / safe cracking", "Smash-and-grab retail robbery", "Exhibition transit", "Memo goods loss"],
+        "risk_factors": [
+            "Burglary / safe cracking",
+            "Smash-and-grab retail robbery",
+            "Exhibition transit",
+            "Memo goods loss",
+        ],
         "compliance_disclaimer": "Jade Jewellers Block is underwritten by licensed insurance partners and administered by JA Assure Pte Ltd. Terms and conditions apply.",
     },
     "jaguar_transit": {
@@ -33,7 +38,12 @@ BRANDS: dict[str, dict] = {
         "parent": "JA Assure",
         "niche": "High-Value Goods Transit Insurance",
         "tagline": "Unbroken chain-of-custody protection for luxury logistics and high-value cargo",
-        "audiences": ["Specialized Couriers", "Bullion & Cash Handlers", "Luxury Watch & Art Logistics", "Freight Forwarders"],
+        "audiences": [
+            "Specialized Couriers",
+            "Bullion & Cash Handlers",
+            "Luxury Watch & Art Logistics",
+            "Freight Forwarders",
+        ],
         "territories": ["Singapore", "Malaysia", "Hong Kong", "Indonesia", "Thailand"],
         "voice": "Vigilant, operational, logistics-savvy, resilient, real-time risk conscious",
         "colors": {
@@ -43,7 +53,12 @@ BRANDS: dict[str, dict] = {
             "text": "#F8FAFC",
             "accent": "#38BDF8",
         },
-        "risk_factors": ["Hijacking & road theft", "Port & tarmac storage delays", "Disputed chain-of-custody", "High-value loss in transit"],
+        "risk_factors": [
+            "Hijacking & road theft",
+            "Port & tarmac storage delays",
+            "Disputed chain-of-custody",
+            "High-value loss in transit",
+        ],
         "compliance_disclaimer": "Jaguar Transit policies are underwritten by authorized insurers and managed by JA Assure. Coverage limits depend on declared route telemetry and policy terms.",
     },
     "doctorshield": {
@@ -52,7 +67,12 @@ BRANDS: dict[str, dict] = {
         "parent": "JA Assure",
         "niche": "Medical Malpractice & Professional Indemnity",
         "tagline": "Doctor-first medical defence and legal protection across Southeast Asia",
-        "audiences": ["Private Clinic Physicians", "Specialist Surgeons", "Aesthetic Practitioners", "Dental Specialists"],
+        "audiences": [
+            "Private Clinic Physicians",
+            "Specialist Surgeons",
+            "Aesthetic Practitioners",
+            "Dental Specialists",
+        ],
         "territories": ["Singapore", "Malaysia", "Hong Kong", "Thailand", "Indonesia"],
         "voice": "Empathetic, legally rigorous, doctor-first advocate, reassuring, peer-to-peer",
         "colors": {
@@ -62,7 +82,12 @@ BRANDS: dict[str, dict] = {
             "text": "#FFFFFF",
             "accent": "#38BDF8",
         },
-        "risk_factors": ["Disciplinary inquiries (SMC / MMC / HKMC)", "Informed consent litigation", "Diagnostic delay allegations", "Data privacy & clinic cyber risks"],
+        "risk_factors": [
+            "Disciplinary inquiries (SMC / MMC / HKMC)",
+            "Informed consent litigation",
+            "Diagnostic delay allegations",
+            "Data privacy & clinic cyber risks",
+        ],
         "compliance_disclaimer": "DoctorShield is distributed by JA Assure. Specific coverage, retroactive dates, and exclusions are subject to formal underwriting criteria.",
     },
 }
@@ -87,7 +112,13 @@ JURISDICTIONS: dict[str, dict] = {
         "regulator": "Monetary Authority of Singapore (MAS)",
         "framework": "Insurance Act 1966 & MAS Notice 318 / Notice 321",
         "mandatory_warnings": "This material is for informational purposes and does not constitute insurance or financial advice.",
-        "prohibited_terms": ["100% covered", "zero risk", "instant guaranteed payout", "no questions asked", "unlimited coverage"],
+        "prohibited_terms": [
+            "100% covered",
+            "zero risk",
+            "instant guaranteed payout",
+            "no questions asked",
+            "unlimited coverage",
+        ],
     },
     "Malaysia": {
         "regulator": "Bank Negara Malaysia (BNM)",

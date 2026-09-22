@@ -89,9 +89,7 @@ class AyrsharePublisher(BasePublisher):
         if not self.api_key:
             raise PublisherError("AYRSHARE_API_KEY is not set.")
 
-        payload: dict[str, Any] = {
-            "post": item.final_content or item.draft_content, "platforms": [item.platform]
-        }
+        payload: dict[str, Any] = {"post": item.final_content or item.draft_content, "platforms": [item.platform]}
         media_url = _public_media_url(item)
         if media_url:
             payload["mediaUrls"] = [media_url]

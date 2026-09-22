@@ -68,4 +68,3 @@ def augment_guidance_with_memgpt(*, brand: str, platform: str, local_guidance: s
 
     block = f"ADDITIONAL GUIDANCE (MemGPT): {memgpt_guidance}"
     return f"{local_guidance}\n\n{block}" if local_guidance else block
-

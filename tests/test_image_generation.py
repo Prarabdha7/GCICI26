@@ -126,7 +126,9 @@ def test_image_call_raises_when_both_gemini_and_pollinations_fail(monkeypatch) -
     from app.llm.client import LLMError, image_call
 
     monkeypatch.setattr(client_module, "_gemini_image", lambda **kw: (_ for _ in ()).throw(LLMError("no key")))
-    monkeypatch.setattr(client_module, "_pollinations_image", lambda **kw: (_ for _ in ()).throw(LLMError("network down")))
+    monkeypatch.setattr(
+        client_module, "_pollinations_image", lambda **kw: (_ for _ in ()).throw(LLMError("network down"))
+    )
 
     with pytest.raises(LLMError, match="network down"):
         image_call(prompt="a jewellery display case")
@@ -156,9 +158,14 @@ def test_image_generation_node_writes_image_paths(monkeypatch, tmp_output_dir) -
     monkeypatch.setattr(nodes_module, "generate_image", lambda prompt: tmp_output_dir / "img_abc.png")
 
     state = {
-        "brand": "Jade", "platform": "instagram", "language": "en",
-        "draft_content": "a discreet jewellery collection", "compliance_errors": [], "retry_count": 0,
-        "feedback_guidance": "", "media_path": None,
+        "brand": "Jade",
+        "platform": "instagram",
+        "language": "en",
+        "draft_content": "a discreet jewellery collection",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
+        "media_path": None,
     }
     result = nodes_module.image_generation_node(state)
 
@@ -170,9 +177,14 @@ def test_image_generation_node_never_crashes_the_graph_on_failure() -> None:
     generate_image -> node returns {} instead of raising, same contract as
     video_assembly_node."""
     state = {
-        "brand": "Jade", "platform": "instagram", "language": "en",
-        "draft_content": "copy", "compliance_errors": [], "retry_count": 0,
-        "feedback_guidance": "", "media_path": None,
+        "brand": "Jade",
+        "platform": "instagram",
+        "language": "en",
+        "draft_content": "copy",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
+        "media_path": None,
     }
     assert nodes_module.image_generation_node(state) == {}
 
@@ -207,8 +219,12 @@ def test_route_after_localization(platform, content_type, expected) -> None:
 
 def test_persist_node_generates_one_image_per_carousel_slide(monkeypatch, tmp_output_dir) -> None:
     fake_pack = {
-        "linkedin": "post", "thread": ["1/ a"], "carousel": ["Slide 1", "Slide 2", "Slide 3"],
-        "video_script": "", "variant_a": "a", "variant_b": "b",
+        "linkedin": "post",
+        "thread": ["1/ a"],
+        "carousel": ["Slide 1", "Slide 2", "Slide 3"],
+        "video_script": "",
+        "variant_a": "a",
+        "variant_b": "b",
     }
     monkeypatch.setattr(formats_module, "build_format_pack", lambda draft, brand, platform: fake_pack)
     monkeypatch.setattr(formats_module, "pack_to_json", lambda pack: "{}")
@@ -221,9 +237,15 @@ def test_persist_node_generates_one_image_per_carousel_slide(monkeypatch, tmp_ou
     monkeypatch.setattr(nodes_module, "generate_image", fake_generate)
 
     state = {
-        "brand": "Jade", "platform": "instagram", "language": "en",
-        "draft_content": "copy", "compliance_errors": [], "retry_count": 0,
-        "feedback_guidance": "", "media_path": None, "content_type": "carousel",
+        "brand": "Jade",
+        "platform": "instagram",
+        "language": "en",
+        "draft_content": "copy",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
+        "media_path": None,
+        "content_type": "carousel",
     }
     result = nodes_module.persist_node(state)
 
@@ -236,8 +258,12 @@ def test_persist_node_generates_one_image_per_carousel_slide(monkeypatch, tmp_ou
 
 def test_persist_node_carousel_survives_one_slide_failing(monkeypatch, tmp_output_dir) -> None:
     fake_pack = {
-        "linkedin": "post", "thread": ["1/ a"], "carousel": ["Slide 1", "Slide 2"],
-        "video_script": "", "variant_a": "a", "variant_b": "b",
+        "linkedin": "post",
+        "thread": ["1/ a"],
+        "carousel": ["Slide 1", "Slide 2"],
+        "video_script": "",
+        "variant_a": "a",
+        "variant_b": "b",
     }
     monkeypatch.setattr(formats_module, "build_format_pack", lambda draft, brand, platform: fake_pack)
     monkeypatch.setattr(formats_module, "pack_to_json", lambda pack: "{}")
@@ -250,9 +276,15 @@ def test_persist_node_carousel_survives_one_slide_failing(monkeypatch, tmp_outpu
     monkeypatch.setattr(nodes_module, "generate_image", flaky_generate)
 
     state = {
-        "brand": "Jade", "platform": "instagram", "language": "en",
-        "draft_content": "copy", "compliance_errors": [], "retry_count": 0,
-        "feedback_guidance": "", "media_path": None, "content_type": "carousel",
+        "brand": "Jade",
+        "platform": "instagram",
+        "language": "en",
+        "draft_content": "copy",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
+        "media_path": None,
+        "content_type": "carousel",
     }
     result = nodes_module.persist_node(state)
 
@@ -263,9 +295,15 @@ def test_persist_node_carousel_survives_one_slide_failing(monkeypatch, tmp_outpu
 
 def test_persist_node_passes_through_hero_image_for_non_carousel(monkeypatch) -> None:
     state = {
-        "brand": "Jade", "platform": "instagram", "language": "en",
-        "draft_content": "copy", "compliance_errors": [], "retry_count": 0,
-        "feedback_guidance": "", "media_path": None, "content_type": "post",
+        "brand": "Jade",
+        "platform": "instagram",
+        "language": "en",
+        "draft_content": "copy",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
+        "media_path": None,
+        "content_type": "post",
         "image_paths": ["temp/img_hero.png"],
     }
     result = nodes_module.persist_node(state)

@@ -34,19 +34,19 @@ class ContentStatus(str, Enum):
     pending -> approved -> scheduled -> published   (the happy path)
     """
 
-    PENDING = "pending"                          # awaiting human review
-    APPROVED = "approved"                        # human approved; Project 2 may publish
-    REJECTED = "rejected"                        # human rejected; feedback captured
-    SCHEDULED = "scheduled"                      # handed to the posting API
-    PUBLISHED = "published"                      # live
+    PENDING = "pending"  # awaiting human review
+    APPROVED = "approved"  # human approved; Project 2 may publish
+    REJECTED = "rejected"  # human rejected; feedback captured
+    SCHEDULED = "scheduled"  # handed to the posting API
+    PUBLISHED = "published"  # live
     MANUAL_INTERVENTION = "manual_intervention"  # circuit breaker tripped
-    FAILED = "failed"                            # unrecoverable pipeline error
+    FAILED = "failed"  # unrecoverable pipeline error
 
 
 class Brand(str, Enum):
-    JADE = "Jade"                        # jewellers block
-    JAGUAR_TRANSIT = "Jaguar Transit"    # high-value goods transit
-    DOCTORSHIELD = "DoctorShield"        # medical indemnity
+    JADE = "Jade"  # jewellers block
+    JAGUAR_TRANSIT = "Jaguar Transit"  # high-value goods transit
+    DOCTORSHIELD = "DoctorShield"  # medical indemnity
 
 
 class Platform(str, Enum):
@@ -58,11 +58,11 @@ class Platform(str, Enum):
 
 
 class Language(str, Enum):
-    EN = "en"   # English      — Singapore / Hong Kong
-    MS = "ms"   # Malay        — Malaysia
-    ID = "id"   # Bahasa Indonesia — Indonesia
-    TH = "th"   # Thai         — Thailand
-    ZH = "zh"   # Chinese      — Singapore / Hong Kong
+    EN = "en"  # English      — Singapore / Hong Kong
+    MS = "ms"  # Malay        — Malaysia
+    ID = "id"  # Bahasa Indonesia — Indonesia
+    TH = "th"  # Thai         — Thailand
+    ZH = "zh"  # Chinese      — Singapore / Hong Kong
 
 
 class ErrorTag(str, Enum):
@@ -116,7 +116,9 @@ class ContentQueue(Base):
     draft_content: Mapped[str] = mapped_column(Text)
     final_content: Mapped[str | None] = mapped_column(Text, default=None)  # after human edit
     media_path: Mapped[str | None] = mapped_column(String(512), default=None)
-    image_paths: Mapped[list[str] | None] = mapped_column(JSON, default=None)  # one hero shot, or one per carousel slide
+    image_paths: Mapped[list[str] | None] = mapped_column(
+        JSON, default=None
+    )  # one hero shot, or one per carousel slide
     healed_content: Mapped[str | None] = mapped_column(Text, default=None)
     audit_transcript: Mapped[str | None] = mapped_column(Text, default=None)
     formats_json: Mapped[str | None] = mapped_column(Text, default=None)  # multi-format pack
@@ -169,15 +171,11 @@ class FeedbackMemory(Base):
     platform: Mapped[str] = mapped_column(String(32), index=True)
     error_tag: Mapped[str] = mapped_column(String(64), index=True)
     human_note: Mapped[str] = mapped_column(Text)
-    timestamp: Mapped[dt.datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), index=True
-    )
+    timestamp: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     # Additive (not in the original six-column spec): traceability back to the
     # rejected asset, so rejection rate and edit distance can be computed.
-    content_id: Mapped[int | None] = mapped_column(
-        ForeignKey("content_queue.id", ondelete="SET NULL"), default=None
-    )
+    content_id: Mapped[int | None] = mapped_column(ForeignKey("content_queue.id", ondelete="SET NULL"), default=None)
 
     # Demo segregation: True only for explicitly-labeled walkthrough rows.
     is_demo: Mapped[bool] = mapped_column(default=False)
@@ -206,7 +204,9 @@ class Lead(Base):
     website: Mapped[str | None] = mapped_column(String(512), default=None)
 
     country: Mapped[str | None] = mapped_column(String(64), index=True, default=None)
-    segment: Mapped[str | None] = mapped_column(String(64), index=True, default=None)  # jeweller | clinic | sme | courier
+    segment: Mapped[str | None] = mapped_column(
+        String(64), index=True, default=None
+    )  # jeweller | clinic | sme | courier
     target_brand: Mapped[str | None] = mapped_column(String(64), index=True, default=None)
 
     source_url: Mapped[str | None] = mapped_column(String(512), default=None)

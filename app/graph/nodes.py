@@ -55,15 +55,24 @@ def _adversarial_debate(brand: str, draft: str, rubric: str, violations: list[st
     """
     joined = "\n".join(f"- {v}" for v in violations) or "- (heuristic gate)"
     try:
-        marketer = text_call(system="You are a growth marketer. Be concise.", user=prompts.adversarial_marketer_prompt(brand=brand, draft=draft))
+        marketer = text_call(
+            system="You are a growth marketer. Be concise.",
+            user=prompts.adversarial_marketer_prompt(brand=brand, draft=draft),
+        )
     except LLMError:
         marketer = "Marketer: keep bold hook for CTR, but accept disclaimer insertion."
     try:
-        inquisitor = text_call(system="You are a strict MAS/HKIA auditor.", user=prompts.adversarial_inquisitor_prompt(brand=brand, draft=draft, rubric=rubric[:3000]))
+        inquisitor = text_call(
+            system="You are a strict MAS/HKIA auditor.",
+            user=prompts.adversarial_inquisitor_prompt(brand=brand, draft=draft, rubric=rubric[:3000]),
+        )
     except LLMError:
         inquisitor = f"Inquisitor: {joined} (cites Rubric 4 / MAS-1)"
     try:
-        arbiter = text_call(system="You are the underwriter arbiter.", user=prompts.adversarial_arbiter_prompt(brand=brand, draft=draft, violations=joined))
+        arbiter = text_call(
+            system="You are the underwriter arbiter.",
+            user=prompts.adversarial_arbiter_prompt(brand=brand, draft=draft, violations=joined),
+        )
     except LLMError:
         arbiter = self_healing_fix(draft, violations)
     transcript = f"Marketer: {marketer}\n\nInquisitor: {inquisitor}\n\nArbiter: {arbiter[:800]}"
@@ -109,7 +118,9 @@ def market_research_node(state: MarketingState) -> dict:
         market_research = ""
     log.info(
         "market_research_node brand=%s topic=%s found=%s",
-        state["brand"], topic, bool(market_research),
+        state["brand"],
+        topic,
+        bool(market_research),
     )
     return {"market_research": market_research}
 
@@ -147,7 +158,8 @@ def content_node(state: MarketingState) -> dict:
             raise
         log.warning("content_node LLM unavailable (%s) — labeled DEMO fallback", exc)
         draft = "[DEMO] " + fallback_content(
-            state["brand"], state["platform"],
+            state["brand"],
+            state["platform"],
             topic=state.get("topic", "") or user[:200],
             feedback_guidance=state.get("feedback_guidance", ""),
         )
@@ -168,7 +180,9 @@ def _log_content(state: MarketingState, draft: str) -> dict:
     """
     log.info(
         "content_node brand=%s platform=%s retry_count=%s",
-        state["brand"], state["platform"], state.get("retry_count", 0),
+        state["brand"],
+        state["platform"],
+        state.get("retry_count", 0),
     )
     return {"draft_content": draft}
 
@@ -186,9 +200,7 @@ def localization_node(state: MarketingState) -> dict:
         LLMError: If remote LLM adaptation fails while operating in production mode.
     """
     system = prompts.localization_system_prompt(brand=state["brand"], language=state["language"])
-    user = prompts.localization_user_prompt(
-        draft_content=state["draft_content"], language=state["language"]
-    )
+    user = prompts.localization_user_prompt(draft_content=state["draft_content"], language=state["language"])
     try:
         localized = text_call(system=system, user=user)
     except LLMError as exc:
@@ -246,12 +258,19 @@ def compliance_gate_node(state: MarketingState) -> dict:
     retry_count = state.get("retry_count", 0) + 1
     log.info(
         "compliance_gate_node brand=%s FAIL retry_count=%s violations=%s",
-        state["brand"], retry_count, violations,
+        state["brand"],
+        retry_count,
+        violations,
     )
     if not state.get("enable_adversarial"):
         return {"compliance_errors": violations, "retry_count": retry_count}
     transcript, healed = _adversarial_debate(state["brand"], state["draft_content"], rubric, violations)
-    return {"compliance_errors": violations, "retry_count": retry_count, "audit_transcript": transcript, "healed_content": healed}
+    return {
+        "compliance_errors": violations,
+        "retry_count": retry_count,
+        "audit_transcript": transcript,
+        "healed_content": healed,
+    }
 
 
 def _carousel_image_paths(slides: list[str]) -> list[str]:
@@ -340,7 +359,8 @@ def video_assembly_node(state: MarketingState) -> dict:
         from app.config import settings as _settings
 
         video_path = assemble_video(
-            script=state["draft_content"], language=state.get("language", "en"),
+            script=state["draft_content"],
+            language=state.get("language", "en"),
             brand=state.get("brand", "Jade"),
         )
         media = str(video_path)
@@ -370,8 +390,7 @@ def _image_prompt(draft: str) -> str:
     subject = (draft or "").strip()[:250]
     if not subject:
         return (
-            "A professional marketing photo, no text overlay, no logos, "
-            "photorealistic, suitable for an Instagram post."
+            "A professional marketing photo, no text overlay, no logos, photorealistic, suitable for an Instagram post."
         )
     return (
         f"{subject} "
@@ -418,6 +437,8 @@ def manual_intervention_node(state: MarketingState) -> dict:
     """
     log.warning(
         "manual_intervention_node brand=%s retry_count=%s violations=%s",
-        state["brand"], state.get("retry_count", 0), state.get("compliance_errors", []),
+        state["brand"],
+        state.get("retry_count", 0),
+        state.get("compliance_errors", []),
     )
     return {}

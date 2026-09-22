@@ -36,7 +36,11 @@ def content_system_prompt(*, brand: str, platform: str, feedback_guidance: str =
 
 
 def content_user_prompt(
-    *, brand: str, platform: str, topic: str = "", market_research: str = "",
+    *,
+    brand: str,
+    platform: str,
+    topic: str = "",
+    market_research: str = "",
     compliance_errors: list[str] | None = None,
 ) -> str:
     base = f"Write a marketing post for {brand} on {platform}."
@@ -124,10 +128,7 @@ def research_system_prompt(*, brand: str) -> str:
 
 
 def research_user_prompt(*, niche: str, country: str, context: str) -> str:
-    return (
-        f"Target niche: {niche}\nMarket: {country}\n\n"
-        f"Source material (search results and scraped pages):\n{context}"
-    )
+    return f"Target niche: {niche}\nMarket: {country}\n\nSource material (search results and scraped pages):\n{context}"
 
 
 def lead_scoring_system_prompt(*, brand: str) -> str:
@@ -142,7 +143,4 @@ def lead_scoring_system_prompt(*, brand: str) -> str:
 
 
 def lead_scoring_user_prompt(*, company_name: str, website: str, research_notes: str) -> str:
-    return (
-        f"Prospect: {company_name}\nWebsite: {website}\n\n"
-        f"Competitive/market context:\n{research_notes}"
-    )
+    return f"Prospect: {company_name}\nWebsite: {website}\n\nCompetitive/market context:\n{research_notes}"

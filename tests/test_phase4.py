@@ -54,7 +54,9 @@ class FakeVideoClip:
 @pytest.fixture(autouse=True)
 def fake_moviepy(monkeypatch):
     monkeypatch.setattr(assembly, "AudioFileClip", FakeAudioClip)
-    monkeypatch.setattr(assembly, "ColorClip", lambda size, color, duration: FakeVideoClip(size=size, color=color, duration=duration))
+    monkeypatch.setattr(
+        assembly, "ColorClip", lambda size, color, duration: FakeVideoClip(size=size, color=color, duration=duration)
+    )
     monkeypatch.setattr(assembly, "VideoFileClip", lambda path: FakeVideoClip(source=path))
 
 
@@ -152,9 +154,7 @@ def test_assemble_video_trims_to_audio_duration(monkeypatch, tmp_output_dir, tmp
 
     background = tmp_path / "bg.mp4"
     background.write_bytes(b"fake background")
-    assembly.assemble_video(
-        script="hello", language="en", background_path=background, output_dir=tmp_output_dir
-    )
+    assembly.assemble_video(script="hello", language="en", background_path=background, output_dir=tmp_output_dir)
 
     assert captured == {"start": 0, "end": 3.0}
 
@@ -176,9 +176,14 @@ def test_video_assembly_node_writes_media_path(monkeypatch, tmp_output_dir) -> N
     monkeypatch.setattr(nodes_module, "assemble_video", lambda **kw: tmp_output_dir / "reel.mp4")
 
     state = {
-        "brand": "Jade", "platform": "instagram", "language": "en",
-        "draft_content": "script text", "compliance_errors": [], "retry_count": 0,
-        "feedback_guidance": "", "media_path": None,
+        "brand": "Jade",
+        "platform": "instagram",
+        "language": "en",
+        "draft_content": "script text",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
+        "media_path": None,
     }
     result = nodes_module.video_assembly_node(state)
 
@@ -197,9 +202,14 @@ def test_video_assembly_node_passes_draft_content_and_language(monkeypatch) -> N
     monkeypatch.setattr(nodes_module, "assemble_video", fake_assemble)
 
     state = {
-        "brand": "Jade", "platform": "instagram", "language": "th",
-        "draft_content": "the localized script", "compliance_errors": [], "retry_count": 0,
-        "feedback_guidance": "", "media_path": None,
+        "brand": "Jade",
+        "platform": "instagram",
+        "language": "th",
+        "draft_content": "the localized script",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
+        "media_path": None,
     }
     nodes_module.video_assembly_node(state)
 

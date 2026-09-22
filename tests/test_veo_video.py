@@ -59,7 +59,9 @@ class FakeVideoClip:
 @pytest.fixture(autouse=True)
 def fake_moviepy(monkeypatch):
     monkeypatch.setattr(assembly, "AudioFileClip", FakeAudioClip)
-    monkeypatch.setattr(assembly, "ColorClip", lambda size, color, duration: FakeVideoClip(size=size, color=color, duration=duration))
+    monkeypatch.setattr(
+        assembly, "ColorClip", lambda size, color, duration: FakeVideoClip(size=size, color=color, duration=duration)
+    )
     monkeypatch.setattr(assembly, "VideoFileClip", lambda path: FakeVideoClip(source=path))
 
 

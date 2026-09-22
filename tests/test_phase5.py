@@ -33,7 +33,8 @@ def _fake_response(json_data: dict, status_code: int = 200) -> httpx.Response:
 
 def test_serper_search_maps_organic_results(monkeypatch) -> None:
     monkeypatch.setattr(
-        providers.httpx, "post",
+        providers.httpx,
+        "post",
         lambda *a, **kw: _fake_response({"organic": [{"title": "T", "link": "https://a.test", "snippet": "s"}]}),
     )
 
@@ -49,7 +50,8 @@ def test_serper_search_maps_organic_results(monkeypatch) -> None:
 
 def test_google_places_discovery_maps_places(monkeypatch) -> None:
     monkeypatch.setattr(
-        providers.httpx, "get",
+        providers.httpx,
+        "get",
         lambda *a, **kw: _fake_response({"results": [{"name": "Acme", "website": "https://acme.test"}]}),
     )
 
@@ -75,7 +77,8 @@ def test_scrapegraph_client_returns_markdown(monkeypatch) -> None:
 
 def test_get_hunter_contacts_returns_emails(monkeypatch) -> None:
     monkeypatch.setattr(
-        providers.httpx, "get",
+        providers.httpx,
+        "get",
         lambda *a, **kw: _fake_response({"data": {"emails": [{"value": "a@acme.test"}]}}),
     )
     assert providers.get_hunter_contacts("acme.test", api_key="key") == [{"value": "a@acme.test"}]
@@ -206,20 +209,28 @@ def test_enrichment_node_degrades_gracefully_without_hunter_key(monkeypatch) -> 
 
 def test_scoring_outreach_node_merges_verdict_into_prospect(monkeypatch) -> None:
     monkeypatch.setattr(
-        leads_module, "structured_call",
+        leads_module,
+        "structured_call",
         lambda **kw: {"fit_score": 80, "score_rationale": "good fit", "outreach_draft": "hello"},
     )
 
     state = {
-        "brand": "Jade", "research_notes": "",
+        "brand": "Jade",
+        "research_notes": "",
         "enriched": [{"company_name": "Acme", "website": "https://acme.test", "contacts": []}],
     }
     result = leads_module.scoring_outreach_node(state)
 
-    assert result["leads"] == [{
-        "company_name": "Acme", "website": "https://acme.test", "contacts": [],
-        "fit_score": 80, "score_rationale": "good fit", "outreach_draft": "hello",
-    }]
+    assert result["leads"] == [
+        {
+            "company_name": "Acme",
+            "website": "https://acme.test",
+            "contacts": [],
+            "fit_score": 80,
+            "score_rationale": "good fit",
+            "outreach_draft": "hello",
+        }
+    ]
 
 
 def test_lead_score_schema_is_exact() -> None:
@@ -230,12 +241,19 @@ def test_lead_score_schema_is_exact() -> None:
 
 def test_persist_leads_node_writes_rows(monkeypatch) -> None:
     state = {
-        "brand": "Jade", "niche": "jewellers", "country": "SG",
-        "leads": [{
-            "company_name": "Acme", "website": "https://acme.test",
-            "contacts": [{"value": "a@acme.test"}],
-            "fit_score": 80, "score_rationale": "good fit", "outreach_draft": "hello",
-        }],
+        "brand": "Jade",
+        "niche": "jewellers",
+        "country": "SG",
+        "leads": [
+            {
+                "company_name": "Acme",
+                "website": "https://acme.test",
+                "contacts": [{"value": "a@acme.test"}],
+                "fit_score": 80,
+                "score_rationale": "good fit",
+                "outreach_draft": "hello",
+            }
+        ],
     }
 
     result = leads_module.persist_leads_node(state)
@@ -269,14 +287,23 @@ def test_lead_gen_graph_runs_research_and_discovery_in_parallel(monkeypatch) -> 
     monkeypatch.setattr(leads_module, "get_discovery_provider", lambda: FakeDiscovery())
     monkeypatch.setattr(leads_module, "get_hunter_contacts", lambda domain: [{"value": "a@acme.test"}])
     monkeypatch.setattr(
-        leads_module, "structured_call",
+        leads_module,
+        "structured_call",
         lambda **kw: {"fit_score": 90, "score_rationale": "great", "outreach_draft": "hi"},
     )
 
     graph = build_lead_gen_graph()
     final_state = graph.invoke(
-        {"brand": "Jade", "niche": "jewellers", "country": "SG", "research_notes": "",
-         "discovered": [], "enriched": [], "leads": [], "lead_ids": []},
+        {
+            "brand": "Jade",
+            "niche": "jewellers",
+            "country": "SG",
+            "research_notes": "",
+            "discovered": [],
+            "enriched": [],
+            "leads": [],
+            "lead_ids": [],
+        },
         config={"configurable": {"thread_id": str(uuid.uuid4())}},
     )
 
@@ -295,9 +322,14 @@ def test_lead_gen_graph_runs_research_and_discovery_in_parallel(monkeypatch) -> 
 
 def test_persist_node_writes_content_queue_row() -> None:
     state = {
-        "brand": "Jade", "platform": "linkedin", "language": "en",
-        "draft_content": "final approved copy", "compliance_errors": [], "retry_count": 0,
-        "feedback_guidance": "", "media_path": None,
+        "brand": "Jade",
+        "platform": "linkedin",
+        "language": "en",
+        "draft_content": "final approved copy",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
+        "media_path": None,
     }
 
     result = nodes_module.persist_node(state)
@@ -312,9 +344,14 @@ def test_persist_node_writes_content_queue_row() -> None:
 
 def test_persist_node_carries_media_path_and_retry_count() -> None:
     state = {
-        "brand": "Jade", "platform": "instagram", "language": "en",
-        "draft_content": "copy", "compliance_errors": [], "retry_count": 2,
-        "feedback_guidance": "", "media_path": "/tmp/reel.mp4",
+        "brand": "Jade",
+        "platform": "instagram",
+        "language": "en",
+        "draft_content": "copy",
+        "compliance_errors": [],
+        "retry_count": 2,
+        "feedback_guidance": "",
+        "media_path": "/tmp/reel.mp4",
     }
 
     result = nodes_module.persist_node(state)
@@ -334,9 +371,16 @@ def test_full_marketing_graph_persists_on_compliance(monkeypatch) -> None:
 
     graph = build_graph()
     initial_state = {
-        "draft_content": "", "brand": "Jade", "platform": "linkedin", "language": "en",
-        "compliance_errors": [], "retry_count": 0, "feedback_guidance": "",
-        "media_path": None, "status": "", "content_id": None,
+        "draft_content": "",
+        "brand": "Jade",
+        "platform": "linkedin",
+        "language": "en",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
+        "media_path": None,
+        "status": "",
+        "content_id": None,
     }
     final_state = graph.invoke(initial_state, config={"configurable": {"thread_id": str(uuid.uuid4())}})
 

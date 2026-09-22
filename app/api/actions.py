@@ -50,6 +50,7 @@ log = logging.getLogger(__name__)
 
 class GenerateIn(BaseModel):
     """Payload schema for initiating an autonomous content generation run."""
+
     brand: str
     platform: str = "linkedin"
     language: str = "en"
@@ -59,6 +60,7 @@ class GenerateIn(BaseModel):
 
 class NewsjackIn(BaseModel):
     """Payload schema for triggering a competitor or market newsjacking run."""
+
     brand: str
     niche: str = "jewellers block"
     country: str = "Singapore"
@@ -68,12 +70,14 @@ class NewsjackIn(BaseModel):
 
 class RejectIn(BaseModel):
     """Payload schema for recording human rejection rationale."""
+
     error_tag: str
     human_note: str
 
 
 class EditIn(BaseModel):
     """Payload schema for human editorial revisions and feedback logging."""
+
     final_content: str
     error_tag: str
     human_note: str
@@ -81,6 +85,7 @@ class EditIn(BaseModel):
 
 class ActionOut(BaseModel):
     """Standardized response schema for queue modification actions."""
+
     ok: bool = True
     content_id: int
     status: str
@@ -90,6 +95,7 @@ class ActionOut(BaseModel):
 
 class MediaImageIn(BaseModel):
     """Payload schema for requesting on-demand image synthesis."""
+
     prompt: str
     brand: str = "Jade"
     aspect_ratio: str = "1:1"
@@ -97,6 +103,7 @@ class MediaImageIn(BaseModel):
 
 class MediaVideoIn(BaseModel):
     """Payload schema for assembling vertical video reels from voiceover scripts."""
+
     script: str
     language: str = "en"
     brand: str = "Jade"
@@ -106,6 +113,7 @@ class MediaVideoIn(BaseModel):
 
 class MediaSpeechIn(BaseModel):
     """Payload schema for fast neural voiceover audio generation."""
+
     text: str = ""
     script: str = ""
     language: str = "en"
@@ -114,6 +122,7 @@ class MediaSpeechIn(BaseModel):
 
 class DraftScriptIn(BaseModel):
     """Payload schema for synthesizing creative concepts into script and visual prompts."""
+
     prompt: str = ""
     topic: str = ""
     brand: str = "Jade"
@@ -264,10 +273,19 @@ def _run_pipeline(*, brand: str, platform: str, language: str, topic: str, conte
     try:
         final_state = graph.invoke(
             {
-                "draft_content": "", "brand": brand, "platform": platform,
-                "language": language, "topic": topic, "content_type": content_type,
-                "enable_adversarial": True, "compliance_errors": [], "retry_count": 0,
-                "feedback_guidance": "", "media_path": None, "status": "", "content_id": None,
+                "draft_content": "",
+                "brand": brand,
+                "platform": platform,
+                "language": language,
+                "topic": topic,
+                "content_type": content_type,
+                "enable_adversarial": True,
+                "compliance_errors": [],
+                "retry_count": 0,
+                "feedback_guidance": "",
+                "media_path": None,
+                "status": "",
+                "content_id": None,
             },
             config={"configurable": {"thread_id": thread_id}},
         )
@@ -275,6 +293,7 @@ def _run_pipeline(*, brand: str, platform: str, language: str, topic: str, conte
         # the HTTP response.  The pipeline result is already committed to the
         # database at this point, so the export is an optional side-channel.
         import contextlib
+
         with contextlib.suppress(Exception):
             export_execution_to_obsidian(state=final_state, thread_id=thread_id)
         return final_state
@@ -309,11 +328,21 @@ def generate(body: GenerateIn, db: Session = Depends(get_db)) -> ActionOut:
     Returns:
         ActionOut: Queue record status, identifier, and summary message.
     """
-    final_state = _run_pipeline(brand=body.brand, platform=body.platform, language=body.language, topic=body.topic, content_type=body.content_type)
+    final_state = _run_pipeline(
+        brand=body.brand,
+        platform=body.platform,
+        language=body.language,
+        topic=body.topic,
+        content_type=body.content_type,
+    )
     item = _get_item_or_404(final_state["content_id"], db)
     tag = "[DEMO — simulated, not real] " if item.is_demo else ""
-    return ActionOut(content_id=item.id, status=item.status, is_demo=item.is_demo,
-                     message=f"{tag}Generated {item.brand}/{item.platform} (retries={item.retry_count}).")
+    return ActionOut(
+        content_id=item.id,
+        status=item.status,
+        is_demo=item.is_demo,
+        message=f"{tag}Generated {item.brand}/{item.platform} (retries={item.retry_count}).",
+    )
 
 
 @router.post("/newsjack", response_model=ActionOut)
@@ -336,11 +365,17 @@ def newsjack(body: NewsjackIn, db: Session = Depends(get_db)) -> ActionOut:
         topic = newsjack_topic(body.brand, body.niche, body.country)
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Research unavailable honestly: {exc}") from exc
-    final_state = _run_pipeline(brand=body.brand, platform=body.platform, language=body.language, topic=topic, content_type="post")
+    final_state = _run_pipeline(
+        brand=body.brand, platform=body.platform, language=body.language, topic=topic, content_type="post"
+    )
     item = _get_item_or_404(final_state["content_id"], db)
     tag = "[DEMO — simulated, not real] " if item.is_demo else ""
-    return ActionOut(content_id=item.id, status=item.status, is_demo=item.is_demo,
-                     message=f"{tag}Newsjacked {item.brand}/{body.country}: {topic[:120]}")
+    return ActionOut(
+        content_id=item.id,
+        status=item.status,
+        is_demo=item.is_demo,
+        message=f"{tag}Newsjacked {item.brand}/{body.country}: {topic[:120]}",
+    )
 
 
 @router.post("/queue/{content_id}/approve", response_model=ActionOut)
@@ -358,7 +393,9 @@ def approve(content_id: int, db: Session = Depends(get_db)) -> ActionOut:
     item.status = ContentStatus.APPROVED.value
     item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
-    return ActionOut(content_id=item.id, status=item.status, is_demo=item.is_demo, message="Approved — worker may publish.")
+    return ActionOut(
+        content_id=item.id, status=item.status, is_demo=item.is_demo, message="Approved — worker may publish."
+    )
 
 
 @router.post("/queue/{content_id}/reject", response_model=ActionOut)
@@ -378,9 +415,17 @@ def reject(content_id: int, body: RejectIn, db: Session = Depends(get_db)) -> Ac
     item.feedback_reason = body.human_note
     item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
-    create_feedback_entry(db, brand=item.brand, platform=item.platform,
-                          error_tag=body.error_tag, human_note=body.human_note, content_id=item.id)
-    return ActionOut(content_id=item.id, status=item.status, is_demo=item.is_demo, message="Rejected — feedback saved to memory.")
+    create_feedback_entry(
+        db,
+        brand=item.brand,
+        platform=item.platform,
+        error_tag=body.error_tag,
+        human_note=body.human_note,
+        content_id=item.id,
+    )
+    return ActionOut(
+        content_id=item.id, status=item.status, is_demo=item.is_demo, message="Rejected — feedback saved to memory."
+    )
 
 
 @router.post("/queue/{content_id}/edit", response_model=ActionOut)
@@ -401,9 +446,17 @@ def edit(content_id: int, body: EditIn, db: Session = Depends(get_db)) -> Action
     item.feedback_reason = body.human_note
     item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
-    create_feedback_entry(db, brand=item.brand, platform=item.platform,
-                          error_tag=body.error_tag, human_note=body.human_note, content_id=item.id)
-    return ActionOut(content_id=item.id, status=item.status, is_demo=item.is_demo, message="Edited, approved, feedback saved.")
+    create_feedback_entry(
+        db,
+        brand=item.brand,
+        platform=item.platform,
+        error_tag=body.error_tag,
+        human_note=body.human_note,
+        content_id=item.id,
+    )
+    return ActionOut(
+        content_id=item.id, status=item.status, is_demo=item.is_demo, message="Edited, approved, feedback saved."
+    )
 
 
 @router.post("/queue/{content_id}/accept-fix", response_model=ActionOut)
@@ -427,9 +480,17 @@ def accept_fix(content_id: int, db: Session = Depends(get_db)) -> ActionOut:
     item.status = ContentStatus.APPROVED.value
     item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
-    create_feedback_entry(db, brand=item.brand, platform=item.platform,
-                          error_tag="compliance_risk", human_note="Accepted self-healing fix.", content_id=item.id)
-    return ActionOut(content_id=item.id, status=item.status, is_demo=item.is_demo, message="Self-healing fix applied and approved.")
+    create_feedback_entry(
+        db,
+        brand=item.brand,
+        platform=item.platform,
+        error_tag="compliance_risk",
+        human_note="Accepted self-healing fix.",
+        content_id=item.id,
+    )
+    return ActionOut(
+        content_id=item.id, status=item.status, is_demo=item.is_demo, message="Self-healing fix applied and approved."
+    )
 
 
 @router.get("/queue/{content_id}/media")
@@ -476,8 +537,10 @@ def queue_feedback(content_id: int, db: Session = Depends(get_db)) -> list[dict]
     from app.db.models import FeedbackMemory as _FM
 
     rows = list(db.scalars(select(_FM).where(_FM.content_id == content_id).order_by(_FM.timestamp)))
-    return [{"error_tag": r.error_tag, "human_note": r.human_note,
-             "at": r.timestamp.isoformat() if r.timestamp else None} for r in rows]
+    return [
+        {"error_tag": r.error_tag, "human_note": r.human_note, "at": r.timestamp.isoformat() if r.timestamp else None}
+        for r in rows
+    ]
 
 
 @router.post("/media/generate-image")
@@ -633,7 +696,6 @@ def api_draft_script(body: DraftScriptIn) -> dict:
     )
     user_prompt = f"Topic / Campaign Concept: {prompt}\nTarget Brand: {brand}\nPlatform: {platform}"
 
-
     from app.llm.client import structured_call
 
     schema = {
@@ -652,7 +714,10 @@ def api_draft_script(body: DraftScriptIn) -> dict:
     except Exception as exc:
         log.warning("LLM script drafting failed (%s) — using domain-grounded synthesis", exc)
         clean_topic = prompt.rstrip(".")
-        if any(w in clean_topic.lower() for w in ["iphone", "phone", "device", "retail", "offer", "discount", "electronics"]):
+        if any(
+            w in clean_topic.lower()
+            for w in ["iphone", "phone", "device", "retail", "offer", "discount", "electronics"]
+        ):
             voiceover_script = (
                 f"Securing high-value retail consignments requires contract certainty. "
                 f"{brand} provides Lloyd's syndicate protection with audited chain-of-custody for luxury inventory. "
@@ -863,6 +928,7 @@ def get_graph_spec() -> dict:
 
 class ComplianceCheckIn(BaseModel):
     """Payload schema for interactive compliance validation."""
+
     text: str
     rubric: str = "MAS_318"
     brand: str = "Jade"
@@ -891,11 +957,19 @@ def api_compliance_check(body: ComplianceCheckIn) -> dict:
 
     # Add rubric-specific clause citations
     citations = []
-    rubric_name = "MAS Notice 318" if body.rubric == "MAS_318" else "BNM Market Conduct" if body.rubric == "BNM_GUIDELINES" else "HKIA Guideline 28"
+    rubric_name = (
+        "MAS Notice 318"
+        if body.rubric == "MAS_318"
+        else "BNM Market Conduct"
+        if body.rubric == "BNM_GUIDELINES"
+        else "HKIA Guideline 28"
+    )
 
     for v in raw_violations:
         if "guarantee" in v.lower() or "100%" in v or "zero deductible" in v.lower():
-            citations.append(f"{rubric_name} Clause 4.2: Unsubstantiated promise or absolute guarantee of claim indemnification.")
+            citations.append(
+                f"{rubric_name} Clause 4.2: Unsubstantiated promise or absolute guarantee of claim indemnification."
+            )
         elif "fastest" in v.lower() or "best" in v.lower() or "only" in v.lower():
             citations.append(f"{rubric_name} Clause 3.1: Superlative comparison without independent actuarial audit.")
         elif "disclaimer" in v.lower() or "exclusion" in v.lower():
@@ -903,7 +977,9 @@ def api_compliance_check(body: ComplianceCheckIn) -> dict:
         else:
             citations.append(f"{rubric_name}: {v}")
 
-    if not raw_violations and any(w in text.lower() for w in ["guarantee", "100%", "zero deductible", "instant payout", "never lost", "risk-free"]):
+    if not raw_violations and any(
+        w in text.lower() for w in ["guarantee", "100%", "zero deductible", "instant payout", "never lost", "risk-free"]
+    ):
         citations.append(f"{rubric_name} Clause 4.2: Absolute protection claim without qualification.")
         raw_violations.append("Absolute guarantee terminology detected")
 
@@ -1016,7 +1092,9 @@ def api_simulate_webhook(body: dict | None = None, db: Session = Depends(get_db)
     if content_id:
         stmt = stmt.where(ContentQueue.id == content_id)
     else:
-        stmt = stmt.where(ContentQueue.status.in_([ContentStatus.SCHEDULED.value, ContentStatus.APPROVED.value])).order_by(ContentQueue.id.desc())
+        stmt = stmt.where(
+            ContentQueue.status.in_([ContentStatus.SCHEDULED.value, ContentStatus.APPROVED.value])
+        ).order_by(ContentQueue.id.desc())
 
     item = db.scalars(stmt).first()
     if not item:
@@ -1031,8 +1109,25 @@ def api_simulate_webhook(body: dict | None = None, db: Session = Depends(get_db)
 
     metrics = simulate_engagement(item)
     from app.db.models import PublishEvent
-    db.add(PublishEvent(content_id=item.id, event="webhook", provider="simulation", external_post_id=item.external_post_id, payload=metrics))
-    db.add(PublishEvent(content_id=item.id, event="engagement", provider="simulation", external_post_id=item.external_post_id, payload=metrics))
+
+    db.add(
+        PublishEvent(
+            content_id=item.id,
+            event="webhook",
+            provider="simulation",
+            external_post_id=item.external_post_id,
+            payload=metrics,
+        )
+    )
+    db.add(
+        PublishEvent(
+            content_id=item.id,
+            event="engagement",
+            provider="simulation",
+            external_post_id=item.external_post_id,
+            payload=metrics,
+        )
+    )
     db.commit()
 
     return {
@@ -1173,13 +1268,20 @@ def api_memory_vault(db: Session = Depends(get_db)) -> dict:
         dict: Vault configuration, parsed notes, graph topology, and 3-tier memory telemetry.
     """
     import re
+
     vault_dir = _ensure_default_vault_notes()
 
     notes = []
     nodes = []
     edges = []
 
-    note_files = sorted([f for f in vault_dir.rglob("*.md") if not f.name.startswith(".") and not any(p.startswith(".") for p in f.parts)])
+    note_files = sorted(
+        [
+            f
+            for f in vault_dir.rglob("*.md")
+            if not f.name.startswith(".") and not any(p.startswith(".") for p in f.parts)
+        ]
+    )
     for nf in note_files:
         try:
             content = nf.read_text(encoding="utf-8")
@@ -1205,24 +1307,28 @@ def api_memory_vault(db: Session = Depends(get_db)) -> dict:
         raw_wikilinks = re.findall(r"\[\[(.*?)\]\]", content)
         wikilinks = [w.split("|")[0].split("/")[-1].strip() for w in raw_wikilinks if not w.endswith(".excalidraw")]
 
-        notes.append({
-            "id": nf.stem,
-            "filename": nf.name,
-            "title": title,
-            "tier": tier,
-            "tags": tags,
-            "wikilinks": wikilinks,
-            "content": content,
-            "byte_size": len(content),
-            "last_modified": dt.datetime.fromtimestamp(nf.stat().st_mtime, tz=dt.UTC).isoformat(),
-        })
+        notes.append(
+            {
+                "id": nf.stem,
+                "filename": nf.name,
+                "title": title,
+                "tier": tier,
+                "tags": tags,
+                "wikilinks": wikilinks,
+                "content": content,
+                "byte_size": len(content),
+                "last_modified": dt.datetime.fromtimestamp(nf.stat().st_mtime, tz=dt.UTC).isoformat(),
+            }
+        )
 
-        nodes.append({
-            "id": nf.stem,
-            "label": title,
-            "type": "note",
-            "tier": tier,
-        })
+        nodes.append(
+            {
+                "id": nf.stem,
+                "label": title,
+                "type": "note",
+                "tier": tier,
+            }
+        )
 
     for n in notes:
         for target in n["wikilinks"]:
@@ -1254,8 +1360,7 @@ def api_memory_vault(db: Session = Depends(get_db)) -> dict:
                 "status": "cached",
                 "entries_count": len(recent_feedback),
                 "recent_feedback": [
-                    {"tag": rf.error_tag, "note": rf.human_note, "brand": rf.brand}
-                    for rf in recent_feedback
+                    {"tag": rf.error_tag, "note": rf.human_note, "brand": rf.brand} for rf in recent_feedback
                 ],
                 "cache_hit_rate": "94.2%",
             },
@@ -1273,13 +1378,16 @@ def api_memory_vault(db: Session = Depends(get_db)) -> dict:
 
 class PerceptionScrapeIn(BaseModel):
     """Payload schema for competitor intelligence extraction."""
+
     competitor: str = "Chubb"
     niche: str = "jewellers block"
     brand: str = "Jade"
     url: str = ""
 
 
-def _extract_dynamic_claims_and_gaps(comp: str, brand: str, niche: str, scraped_text: str, sources: list[dict]) -> tuple[list[str], list[str], str]:
+def _extract_dynamic_claims_and_gaps(
+    comp: str, brand: str, niche: str, scraped_text: str, sources: list[dict]
+) -> tuple[list[str], list[str], str]:
     """Parse competitor marketing copy into policy claims, statutory gaps, and counter-hooks.
 
     Args:
@@ -1299,13 +1407,32 @@ def _extract_dynamic_claims_and_gaps(comp: str, brand: str, niche: str, scraped_
     gaps: list[str] = []
 
     if scraped_text:
-        clean_text = re.sub(r'[\r\n]+', ' ', scraped_text)
-        clean_text = re.sub(r'\s{2,}', ' ', clean_text)
-        sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s+', clean_text) if len(s.strip()) >= 28]
+        clean_text = re.sub(r"[\r\n]+", " ", scraped_text)
+        clean_text = re.sub(r"\s{2,}", " ", clean_text)
+        sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", clean_text) if len(s.strip()) >= 28]
 
-        claim_keywords = ["insurance", "policy", "cover", "all-risk", "transit", "jewel", "cargo", "medical", "liability", "protect", "underwrit", "damage", "burglary", "loss", "consignment", "freight", "indemnity", "limit"]
+        claim_keywords = [
+            "insurance",
+            "policy",
+            "cover",
+            "all-risk",
+            "transit",
+            "jewel",
+            "cargo",
+            "medical",
+            "liability",
+            "protect",
+            "underwrit",
+            "damage",
+            "burglary",
+            "loss",
+            "consignment",
+            "freight",
+            "indemnity",
+            "limit",
+        ]
         for s in sentences:
-            s_clean = re.sub(r'^[#*|\s\-•]+', '', s).strip()
+            s_clean = re.sub(r"^[#*|\s\-•]+", "", s).strip()
             if any(k in s_clean.lower() for k in claim_keywords):
                 if s_clean not in claims and len(s_clean) <= 180 and not s_clean.lower().startswith("skip to"):
                     claims.append(s_clean)
@@ -1314,13 +1441,23 @@ def _extract_dynamic_claims_and_gaps(comp: str, brand: str, niche: str, scraped_
 
     if len(claims) < 3:
         source_context = sources[0]["title"] if sources and sources[0].get("title") else f"{comp} Regional Underwriting"
-        if "jewel" in niche.lower() or "asset" in niche.lower() or "watch" in niche.lower() or any(x in comp.lower() for x in ["kalyan", "tanishq", "chubb"]):
+        if (
+            "jewel" in niche.lower()
+            or "asset" in niche.lower()
+            or "watch" in niche.lower()
+            or any(x in comp.lower() for x in ["kalyan", "tanishq", "chubb"])
+        ):
             defaults = [
                 f"{comp} commercial jewellers block policy covering showroom display, safe storage, and regional exhibitions ({source_context}).",
                 "Specifies strict locked-safe warranties requiring certified UL/TL ratings for overnight inventory retention.",
                 "Imposes formal transit notice requirements and courier valuation caps on inter-branch consignments.",
             ]
-        elif "cargo" in niche.lower() or "marine" in niche.lower() or "freight" in niche.lower() or "marsh" in comp.lower():
+        elif (
+            "cargo" in niche.lower()
+            or "marine" in niche.lower()
+            or "freight" in niche.lower()
+            or "marsh" in comp.lower()
+        ):
             defaults = [
                 f"{comp} marine cargo coverage providing open cover across designated ASEAN shipping corridors ({source_context}).",
                 "Requires pre-voyage surveyor inspection for temperature-sensitive reefer containers exceeding $250k.",
@@ -1336,7 +1473,11 @@ def _extract_dynamic_claims_and_gaps(comp: str, brand: str, niche: str, scraped_
             if d not in claims and len(claims) < 3:
                 claims.append(d)
 
-    if "jewel" in niche.lower() or "asset" in niche.lower() or any(x in comp.lower() for x in ["kalyan", "tanishq", "chubb"]):
+    if (
+        "jewel" in niche.lower()
+        or "asset" in niche.lower()
+        or any(x in comp.lower() for x in ["kalyan", "tanishq", "chubb"])
+    ):
         gaps = [
             f"Bureaucratic manual loss adjuster dispatch required before claim authorization on {comp} high-value losses.",
             "Excludes unattended showroom counters and private courier handoffs without expensive riders.",
@@ -1404,7 +1545,9 @@ def api_perception_scrape(body: PerceptionScrapeIn) -> dict:
 
     if target_url and target_url.startswith("http"):
         try:
-            with httpx.Client(timeout=8.0, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}) as client:
+            with httpx.Client(
+                timeout=8.0, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            ) as client:
                 resp = client.get(target_url)
                 if resp.status_code == 200:
                     soup = BeautifulSoup(resp.text, "html.parser")
@@ -1486,6 +1629,7 @@ def api_perception_scrape(body: PerceptionScrapeIn) -> dict:
 
 class DraftOutreachIn(BaseModel):
     """Payload schema for generating personalized B2B outreach."""
+
     lead_id: int
     brand: str = "Jade"
     channel: str = "linkedin"
@@ -1551,5 +1695,3 @@ def api_draft_lead_outreach(lead_id: int, body: DraftOutreachIn, db: Session = D
         "fit_score": lead.fit_score,
         "outreach_draft": draft,
     }
-
-

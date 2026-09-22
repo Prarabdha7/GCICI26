@@ -67,6 +67,7 @@ async def research_summary(query: str, *, max_results: int = 2, attempts: int = 
         # Fallback to fast httpx + BeautifulSoup scraping
         from bs4 import BeautifulSoup
         import httpx
+
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
             for url in urls:
                 try:

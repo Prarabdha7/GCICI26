@@ -79,13 +79,23 @@ jobs:
         # avoids resolver failures on packages with complex extras.
         # --desc: include the advisory description for triage context.
         # --skip-editable: skip editable installs (none here, but safe default).
-        run: pip-audit --desc --skip-editable
+        # --ignore-vuln PYSEC-2026-3740 (nltk 3.10.3, CVE-2026-81726):
+        #   File-sandbox bypass in TransitionParser / AveragedPerceptron model
+        #   import-export helpers.  No patched version released upstream as of
+        #   2026-09-22 (fix_versions is empty).  nltk is a transitive dep
+        #   (via crawl4ai / rouge) and this app never exposes those model-path
+        #   APIs to untrusted input, so the finding is advisory-only.
+        #   Re-audit after upstream fix and drop this ignore.
+        run: pip-audit --desc --skip-editable --ignore-vuln PYSEC-2026-3740
 
       # Save the full report as an artifact for browsing in the Actions summary
       # even when the step fails and the terminal log is truncated.
       - name: Save audit report (JSON)
         if: always()
-        run: pip-audit --desc --skip-editable --output-format json > pip-audit-report.json || true
+        # NOTE: pip-audit 2.x uses -f / --format (not --output-format).
+        # The old --output-format flag errors with "unrecognized arguments"
+        # and produced an empty report artifact.
+        run: pip-audit --desc --skip-editable --ignore-vuln PYSEC-2026-3740 --format=json > pip-audit-report.json || true
 
       - name: Upload audit report
         if: always()

@@ -29,9 +29,16 @@ from app.agents.brand_knowledge import get_brand
 log = logging.getLogger(__name__)
 
 BANNED_PHRASES = [
-    "100% guaranteed", "always approved", "cheap", "loophole",
-    "immune", "foolproof", "100% covered", "zero risk",
-    "guaranteed payout", "no questions asked",
+    "100% guaranteed",
+    "always approved",
+    "cheap",
+    "loophole",
+    "immune",
+    "foolproof",
+    "100% covered",
+    "zero risk",
+    "guaranteed payout",
+    "no questions asked",
 ]
 
 DISCLAIMER = "Terms, conditions, and exclusions apply. Subject to formal policy wording and underwriting approval."
@@ -180,7 +187,13 @@ def heuristic_compliance_check(draft: str) -> dict:
     violations = [f"Uses banned phrase '{p}' (Rubric 1/4)" for p in BANNED_PHRASES if p in lowered]
     has_disclaimer = any(
         d.lower() in lowered
-        for d in ["terms, conditions", "subject to formal policy", "does not constitute financial advice", "syarat", "terms and conditions apply"]
+        for d in [
+            "terms, conditions",
+            "subject to formal policy",
+            "does not constitute financial advice",
+            "syarat",
+            "terms and conditions apply",
+        ]
     )
     if not has_disclaimer:
         violations.append("Missing mandatory disclaimer (Rubric 3)")
@@ -292,6 +305,9 @@ def safe_structured_call(*, system: str, user: str, schema: dict, brand: str = "
             return verdict
         # Lead-score schema fallback
         if "fit_score" in schema.get("properties", {}):
-            return {"fit_score": 72, "score_rationale": "Fallback scoring: B2B fit by niche keyword match.", "outreach_draft": f"Hello — JA Assure {brand} can cover this risk. Terms apply."}
+            return {
+                "fit_score": 72,
+                "score_rationale": "Fallback scoring: B2B fit by niche keyword match.",
+                "outreach_draft": f"Hello — JA Assure {brand} can cover this risk. Terms apply.",
+            }
         return verdict
-

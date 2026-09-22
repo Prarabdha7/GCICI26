@@ -101,8 +101,14 @@ def test_llm_client_rejects_unknown_provider() -> None:
 
 def test_content_queue_carries_state_machine_fields() -> None:
     row = ContentQueueOut(
-        id=1, brand="Jade", platform="linkedin", language="ms", content_type="post",
-        draft_content="draft", status="pending", retry_count=2,
+        id=1,
+        brand="Jade",
+        platform="linkedin",
+        language="ms",
+        content_type="post",
+        draft_content="draft",
+        status="pending",
+        retry_count=2,
         compliance_errors=["Uses 'guaranteed' about payouts (Rubric 2.1)"],
     )
     assert row.retry_count == 2
@@ -111,15 +117,21 @@ def test_content_queue_carries_state_machine_fields() -> None:
 
 def test_feedback_memory_shape() -> None:
     entry = FeedbackMemoryOut(
-        id=1, brand="Jade", platform="linkedin",
-        error_tag="too_salesy", human_note="Reads like a pitch, not an insight.",
+        id=1,
+        brand="Jade",
+        platform="linkedin",
+        error_tag="too_salesy",
+        human_note="Reads like a pitch, not an insight.",
     )
     assert entry.error_tag == "too_salesy"
 
 
 def test_queue_stats_exposes_rejection_rate() -> None:
     stats = QueueStats(
-        total=10, by_status={"approved": 6, "rejected": 4},
-        feedback_entries=4, leads=0, rejection_rate=0.4,
+        total=10,
+        by_status={"approved": 6, "rejected": 4},
+        feedback_entries=4,
+        leads=0,
+        rejection_rate=0.4,
     )
     assert stats.rejection_rate == 0.4

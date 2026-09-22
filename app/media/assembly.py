@@ -25,10 +25,12 @@ import uuid
 try:
     import edge_tts
 except ImportError:
+
     class _EdgeTTSStub:
         class Communicate:
             def __init__(self, *a, **k):
                 raise RuntimeError("edge-tts not installed")
+
     edge_tts = _EdgeTTSStub()
 
 try:
@@ -110,6 +112,7 @@ def _run_voiceover_sync(script: str, language: str, audio_path: Path) -> None:
     except RuntimeError:
         asyncio.run(synthesize_voiceover(script, language, audio_path))
         return
+
     def _runner() -> None:
         asyncio.run(synthesize_voiceover(script, language, audio_path))
 
@@ -134,11 +137,13 @@ async def get_word_boundaries(script: str, language: str) -> list[dict]:
         words: list[dict] = []
         async for chunk in communicate.stream():
             if chunk.get("type") == "WordBoundary":
-                words.append({
-                    "word": chunk.get("text", ""),
-                    "start": (chunk.get("offset", 0) or 0) / 10_000_000,
-                    "duration": (chunk.get("duration", 0) or 0) / 10_000_000,
-                })
+                words.append(
+                    {
+                        "word": chunk.get("text", ""),
+                        "start": (chunk.get("offset", 0) or 0) / 10_000_000,
+                        "duration": (chunk.get("duration", 0) or 0) / 10_000_000,
+                    }
+                )
         return words
     except Exception as exc:
         log.warning("word boundaries unavailable (%s) — using estimates", exc)
@@ -174,14 +179,16 @@ def chunk_captions(timings: list[dict], *, chunk_size: int = 4) -> list[dict]:
     """
     caps = []
     for i in range(0, len(timings), chunk_size):
-        chunk = timings[i:i + chunk_size]
+        chunk = timings[i : i + chunk_size]
         if not chunk:
             continue
-        caps.append({
-            "text": " ".join(w["word"] for w in chunk),
-            "start": chunk[0]["start"],
-            "end": chunk[-1]["start"] + chunk[-1]["duration"],
-        })
+        caps.append(
+            {
+                "text": " ".join(w["word"] for w in chunk),
+                "start": chunk[0]["start"],
+                "end": chunk[-1]["start"] + chunk[-1]["duration"],
+            }
+        )
     return caps
 
 
@@ -356,9 +363,24 @@ def assemble_video(
         log.warning("edge-tts failed (%s) — generating valid silent audio stub", exc)
         try:
             import subprocess
+
             subprocess.run(
-                ["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", "5", "-c:a", "libmp3lame", str(audio_path)],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "anullsrc=r=24000:cl=mono",
+                    "-t",
+                    "5",
+                    "-c:a",
+                    "libmp3lame",
+                    str(audio_path),
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
             )
         except Exception:
             pass
@@ -369,10 +391,12 @@ def assemble_video(
         voice_alias = output_dir / f"voice_{run_id}.mp3"
         if audio_path.exists() and not voice_alias.exists():
             import shutil as _sh
+
             _sh.copyfile(audio_path, voice_alias)
     except Exception:
         pass
     import contextlib
+
     with contextlib.suppress(Exception):
         render_caption_card(script, brand=brand, output_path=output_dir / f"caption_{run_id}.png")
 
@@ -392,7 +416,9 @@ def assemble_video(
             try:
                 probe_res = subprocess.run(
                     [ffprobe_bin, "-v", "error", "-show_entries", "format=duration", "-of", "json", str(audio_path)],
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 duration = float(_json.loads(probe_res.stdout)["format"]["duration"])
             except Exception:
@@ -409,7 +435,9 @@ def assemble_video(
                 in_loop = False
             if in_loop:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                    timings = pool.submit(lambda: asyncio.run(get_word_boundaries(script, language))).result(timeout=2.0)
+                    timings = pool.submit(lambda: asyncio.run(get_word_boundaries(script, language))).result(
+                        timeout=2.0
+                    )
             else:
                 timings = asyncio.run(asyncio.wait_for(get_word_boundaries(script, language), timeout=2.0))
         except Exception:
@@ -420,12 +448,16 @@ def assemble_video(
 
         # Write json & srt
         try:
-            (output_dir / f"reel_{run_id}.json").write_text(_json.dumps({"captions": captions, "words": timings[:200]}), encoding="utf-8")
+            (output_dir / f"reel_{run_id}.json").write_text(
+                _json.dumps({"captions": captions, "words": timings[:200]}), encoding="utf-8"
+            )
             srt_lines = []
             for i, cap in enumerate(captions, 1):
+
                 def _ts(s: float) -> str:
                     ms = int(s * 1000)
-                    return f"{ms//3600000:02d}:{(ms//60000)%60:02d}:{(ms//1000)%60:02d},{ms%1000:03d}"
+                    return f"{ms // 3600000:02d}:{(ms // 60000) % 60:02d}:{(ms // 1000) % 60:02d},{ms % 1000:03d}"
+
                 srt_lines += [str(i), f"{_ts(cap['start'])} --> {_ts(cap['end'])}", cap["text"], ""]
             (output_dir / f"reel_{run_id}.srt").write_text("\n".join(srt_lines), encoding="utf-8")
         except Exception:
@@ -454,51 +486,107 @@ def assemble_video(
                     is_img = background_path.suffix.lower() in [".jpg", ".jpeg", ".png", ".webp"]
                     if is_img:
                         cmd += [
-                            "-loop", "1", "-i", str(background_path),
-                            "-i", str(audio_path),
+                            "-loop",
+                            "1",
+                            "-i",
+                            str(background_path),
+                            "-i",
+                            str(audio_path),
                             "-filter_complex",
                             f"[0:v]scale=540:960:force_original_aspect_ratio=increase,crop=540:960,zoompan=z='min(zoom+0.0015,1.25)':d=125:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=24{sf}[v]",
-                            "-map", "[v]", "-map", "1:a",
-                            "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
-                            "-pix_fmt", "yuv420p",
-                            "-c:a", "aac", "-b:a", "192k",
+                            "-map",
+                            "[v]",
+                            "-map",
+                            "1:a",
+                            "-c:v",
+                            "libx264",
+                            "-preset",
+                            "ultrafast",
+                            "-tune",
+                            "stillimage",
+                            "-pix_fmt",
+                            "yuv420p",
+                            "-c:a",
+                            "aac",
+                            "-b:a",
+                            "192k",
                             "-shortest",
-                            "-movflags", "+faststart",
+                            "-movflags",
+                            "+faststart",
                             str(video_path),
                         ]
                     else:
                         vf = sf.lstrip(",") if sf else "null"
                         cmd += [
-                            "-stream_loop", "-1", "-i", str(background_path),
-                            "-i", str(audio_path),
-                            "-vf", vf,
-                            "-c:v", "libx264", "-preset", "ultrafast",
-                            "-pix_fmt", "yuv420p",
-                            "-c:a", "aac", "-b:a", "192k",
+                            "-stream_loop",
+                            "-1",
+                            "-i",
+                            str(background_path),
+                            "-i",
+                            str(audio_path),
+                            "-vf",
+                            vf,
+                            "-c:v",
+                            "libx264",
+                            "-preset",
+                            "ultrafast",
+                            "-pix_fmt",
+                            "yuv420p",
+                            "-c:a",
+                            "aac",
+                            "-b:a",
+                            "192k",
                             "-shortest",
-                            "-movflags", "+faststart",
+                            "-movflags",
+                            "+faststart",
                             str(video_path),
                         ]
                 elif caption_png.exists():
                     cmd += [
-                        "-loop", "1", "-i", str(caption_png),
-                        "-i", str(audio_path),
-                        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage",
-                        "-pix_fmt", "yuv420p",
-                        "-c:a", "aac", "-b:a", "192k",
+                        "-loop",
+                        "1",
+                        "-i",
+                        str(caption_png),
+                        "-i",
+                        str(audio_path),
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "ultrafast",
+                        "-tune",
+                        "stillimage",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-c:a",
+                        "aac",
+                        "-b:a",
+                        "192k",
                         "-shortest",
-                        "-movflags", "+faststart",
+                        "-movflags",
+                        "+faststart",
                         str(video_path),
                     ]
                 else:
                     cmd += [
-                        "-f", "lavfi", "-i", f"color=c={hex_color}:s=1080x1920:r=24",
-                        "-i", str(audio_path),
-                        "-c:v", "libx264", "-preset", "ultrafast",
-                        "-pix_fmt", "yuv420p",
-                        "-c:a", "aac", "-b:a", "192k",
+                        "-f",
+                        "lavfi",
+                        "-i",
+                        f"color=c={hex_color}:s=1080x1920:r=24",
+                        "-i",
+                        str(audio_path),
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "ultrafast",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-c:a",
+                        "aac",
+                        "-b:a",
+                        "192k",
                         "-shortest",
-                        "-movflags", "+faststart",
+                        "-movflags",
+                        "+faststart",
                         str(video_path),
                     ]
                 return cmd
@@ -507,13 +595,20 @@ def assemble_video(
                 cmd = _build_cmd(include_subtitles=bool(sub_filter))
                 proc = subprocess.run(cmd, capture_output=True, timeout=60)
                 if proc.returncode != 0 and sub_filter:
-                    log.warning("assemble_video subtitles burn-in failed (%s) — retrying without burned subtitles", proc.stderr[-200:].decode("utf-8", errors="ignore"))
+                    log.warning(
+                        "assemble_video subtitles burn-in failed (%s) — retrying without burned subtitles",
+                        proc.stderr[-200:].decode("utf-8", errors="ignore"),
+                    )
                     cmd = _build_cmd(include_subtitles=False)
                     proc = subprocess.run(cmd, capture_output=True, timeout=60)
 
                 if proc.returncode == 0 and video_path.exists() and video_path.stat().st_size > 0:
                     rendered = True
-                    log.info("assemble_video: rendered via direct FFmpeg %s (%d bytes)", video_path, video_path.stat().st_size)
+                    log.info(
+                        "assemble_video: rendered via direct FFmpeg %s (%d bytes)",
+                        video_path,
+                        video_path.stat().st_size,
+                    )
 
             except Exception as ffmpeg_err:
                 log.warning("assemble_video FFmpeg render failed (%s)", ffmpeg_err)
@@ -522,6 +617,7 @@ def assemble_video(
             return video_path
 
         from app.config import settings as _settings2
+
         if not _settings2.demo_mode:
             raise RuntimeError("video encoder unavailable in real mode — media skipped honestly")
         video_path.write_bytes(b"DEMO stub mp4 - install moviepy 1.0.3 on py3.10 for real encoding")
@@ -552,12 +648,16 @@ def assemble_video(
     try:
         import json as _json
 
-        (output_dir / f"reel_{run_id}.json").write_text(_json.dumps({"captions": captions, "words": timings[:200]}), encoding="utf-8")
+        (output_dir / f"reel_{run_id}.json").write_text(
+            _json.dumps({"captions": captions, "words": timings[:200]}), encoding="utf-8"
+        )
         srt_lines = []
         for i, cap in enumerate(captions, 1):
+
             def _ts(s: float) -> str:
                 ms = int(s * 1000)
-                return f"{ms//3600000:02d}:{(ms//60000)%60:02d}:{(ms//1000)%60:02d},{ms%1000:03d}"
+                return f"{ms // 3600000:02d}:{(ms // 60000) % 60:02d}:{(ms // 1000) % 60:02d},{ms % 1000:03d}"
+
             srt_lines += [str(i), f"{_ts(cap['start'])} --> {_ts(cap['end'])}", cap["text"], ""]
         (output_dir / f"reel_{run_id}.srt").write_text("\n".join(srt_lines), encoding="utf-8")
     except Exception:
@@ -588,6 +688,7 @@ def assemble_video(
                 overlays.append(sub)
             if overlays:
                 import contextlib
+
                 with contextlib.suppress(Exception):
                     background = CompositeVideoClip([background, *overlays], size=(1080, 1920))
 
@@ -602,7 +703,9 @@ def assemble_video(
     return video_path
 
 
-async def assemble_video_async(*, script: str, language: str, brand: str = "Jade", background_path: Path | None = None, output_dir: Path = TEMP_DIR) -> Path:
+async def assemble_video_async(
+    *, script: str, language: str, brand: str = "Jade", background_path: Path | None = None, output_dir: Path = TEMP_DIR
+) -> Path:
     """Asynchronously execute video assembly within a background executor thread.
 
     Args:
@@ -616,4 +719,9 @@ async def assemble_video_async(*, script: str, language: str, brand: str = "Jade
         Path: Filesystem path to the rendered MP4 file.
     """
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, lambda: assemble_video(script=script, language=language, brand=brand, background_path=background_path, output_dir=output_dir))
+    return await loop.run_in_executor(
+        None,
+        lambda: assemble_video(
+            script=script, language=language, brand=brand, background_path=background_path, output_dir=output_dir
+        ),
+    )

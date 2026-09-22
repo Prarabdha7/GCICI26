@@ -18,9 +18,16 @@ from app.llm.client import LLMError
 
 def _marketing_state(**overrides):
     state = {
-        "draft_content": "", "brand": "Jade", "platform": "linkedin", "language": "en",
-        "compliance_errors": [], "retry_count": 0, "feedback_guidance": "",
-        "media_path": None, "status": "", "content_id": None,
+        "draft_content": "",
+        "brand": "Jade",
+        "platform": "linkedin",
+        "language": "en",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
+        "media_path": None,
+        "status": "",
+        "content_id": None,
     }
     state.update(overrides)
     return state
@@ -47,8 +54,26 @@ def test_demo_rows_excluded_from_real_stats(monkeypatch) -> None:
     from app.main import app
 
     with session_scope() as db:
-        db.add(ContentQueue(brand="Jade", platform="linkedin", language="en", draft_content="[DEMO] x", status=ContentStatus.APPROVED.value, is_demo=True))
-        db.add(ContentQueue(brand="Jade", platform="linkedin", language="en", draft_content="real", status=ContentStatus.REJECTED.value, is_demo=False))
+        db.add(
+            ContentQueue(
+                brand="Jade",
+                platform="linkedin",
+                language="en",
+                draft_content="[DEMO] x",
+                status=ContentStatus.APPROVED.value,
+                is_demo=True,
+            )
+        )
+        db.add(
+            ContentQueue(
+                brand="Jade",
+                platform="linkedin",
+                language="en",
+                draft_content="real",
+                status=ContentStatus.REJECTED.value,
+                is_demo=False,
+            )
+        )
         db.commit()
     with TestClient(app) as client:
         stats = client.get("/api/stats").json()
@@ -82,8 +107,15 @@ def test_confirm_leaves_real_scheduled_untouched(monkeypatch) -> None:
 
     monkeypatch.setattr(settings, "demo_mode", True)
     with session_scope() as db:
-        row = ContentQueue(brand="Jade", platform="linkedin", language="en", draft_content="real",
-                           status=ContentStatus.SCHEDULED.value, external_post_id="buf-real-1", is_demo=False)
+        row = ContentQueue(
+            brand="Jade",
+            platform="linkedin",
+            language="en",
+            draft_content="real",
+            status=ContentStatus.SCHEDULED.value,
+            external_post_id="buf-real-1",
+            is_demo=False,
+        )
         db.add(row)
         db.commit()
         content_id = row.id

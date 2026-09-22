@@ -1,6 +1,6 @@
 """Phase 3 tests: closed-loop memory retrieval and prompt injection.
 
-    pytest tests/test_phase3.py -v
+pytest tests/test_phase3.py -v
 """
 
 from __future__ import annotations
@@ -133,8 +133,15 @@ def test_memory_retrieval_node_writes_feedback_guidance(monkeypatch) -> None:
     monkeypatch.setattr(nodes_module, "get_recent_feedback", lambda db, **kw: canned)
 
     result = nodes_module.memory_retrieval_node(
-        {"brand": "Jade", "platform": "linkedin", "language": "en", "draft_content": "",
-         "compliance_errors": [], "retry_count": 0, "feedback_guidance": ""}
+        {
+            "brand": "Jade",
+            "platform": "linkedin",
+            "language": "en",
+            "draft_content": "",
+            "compliance_errors": [],
+            "retry_count": 0,
+            "feedback_guidance": "",
+        }
     )
 
     assert result == {"feedback_guidance": format_guidance(canned)}
@@ -144,8 +151,15 @@ def test_memory_retrieval_node_returns_empty_guidance_with_no_history(monkeypatc
     monkeypatch.setattr(nodes_module, "get_recent_feedback", lambda db, **kw: [])
 
     result = nodes_module.memory_retrieval_node(
-        {"brand": "Jade", "platform": "linkedin", "language": "en", "draft_content": "",
-         "compliance_errors": [], "retry_count": 0, "feedback_guidance": ""}
+        {
+            "brand": "Jade",
+            "platform": "linkedin",
+            "language": "en",
+            "draft_content": "",
+            "compliance_errors": [],
+            "retry_count": 0,
+            "feedback_guidance": "",
+        }
     )
 
     assert result == {"feedback_guidance": ""}
@@ -161,8 +175,15 @@ def test_memory_retrieval_node_applies_memgpt_augmentation(monkeypatch) -> None:
     )
 
     result = nodes_module.memory_retrieval_node(
-        {"brand": "Jade", "platform": "linkedin", "language": "en", "draft_content": "",
-         "compliance_errors": [], "retry_count": 0, "feedback_guidance": ""}
+        {
+            "brand": "Jade",
+            "platform": "linkedin",
+            "language": "en",
+            "draft_content": "",
+            "compliance_errors": [],
+            "retry_count": 0,
+            "feedback_guidance": "",
+        }
     )
 
     assert "ADDITIONAL GUIDANCE (MemGPT)" in result["feedback_guidance"]
@@ -184,8 +205,13 @@ def test_content_node_appends_feedback_guidance_to_system_prompt(monkeypatch) ->
 
     guidance = "CRITICAL GUIDANCE: Previously, human reviewers rejected content for this brand due to: too_salesy: Too pushy.. You MUST NOT repeat these mistakes."
     state = {
-        "brand": "Jade", "platform": "linkedin", "language": "en", "draft_content": "",
-        "compliance_errors": [], "retry_count": 0, "feedback_guidance": guidance,
+        "brand": "Jade",
+        "platform": "linkedin",
+        "language": "en",
+        "draft_content": "",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": guidance,
     }
 
     nodes_module.content_node(state)
@@ -203,8 +229,13 @@ def test_content_node_injects_no_block_when_guidance_is_empty(monkeypatch) -> No
     monkeypatch.setattr(nodes_module, "text_call", fake_text_call)
 
     state = {
-        "brand": "Jade", "platform": "linkedin", "language": "en", "draft_content": "",
-        "compliance_errors": [], "retry_count": 0, "feedback_guidance": "",
+        "brand": "Jade",
+        "platform": "linkedin",
+        "language": "en",
+        "draft_content": "",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
     }
 
     nodes_module.content_node(state)
@@ -242,12 +273,15 @@ def test_graph_runs_memory_retrieval_before_content(monkeypatch) -> None:
 
     graph = build_graph()
     initial_state = {
-        "draft_content": "", "brand": "Jade", "platform": "linkedin", "language": "en",
-        "compliance_errors": [], "retry_count": 0, "feedback_guidance": "",
+        "draft_content": "",
+        "brand": "Jade",
+        "platform": "linkedin",
+        "language": "en",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
     }
-    final_state = graph.invoke(
-        initial_state, config={"configurable": {"thread_id": str(uuid.uuid4())}}
-    )
+    final_state = graph.invoke(initial_state, config={"configurable": {"thread_id": str(uuid.uuid4())}})
 
     assert final_state["feedback_guidance"] == format_guidance(canned)
     # content_node ran with the guidance already populated by memory_retrieval_node

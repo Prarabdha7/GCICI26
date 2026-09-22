@@ -178,7 +178,9 @@ def export_execution_to_obsidian(*, state: dict, thread_id: str) -> None:
     platform_tag = _safe_slug(platform)
     status_tag = _safe_slug(status)
 
-    brand_link = "Jaguar-Transit" if "jaguar" in brand.lower() else ("DoctorShield" if "doctor" in brand.lower() else "Jade")
+    brand_link = (
+        "Jaguar-Transit" if "jaguar" in brand.lower() else ("DoctorShield" if "doctor" in brand.lower() else "Jade")
+    )
     platform_map = {
         "linkedin": "LinkedIn",
         "instagram": "Instagram",
@@ -253,4 +255,3 @@ def export_execution_to_obsidian(*, state: dict, thread_id: str) -> None:
             _build_excalidraw_json(include_video=include_video, manual=manual),
             encoding="utf-8",
         )
-

@@ -58,4 +58,3 @@ def test_obsidian_export_writes_note_and_excalidraw(tmp_path, monkeypatch) -> No
     files = list(out_dir.iterdir())
     assert any(f.suffix == ".md" for f in files)
     assert any(f.suffix == ".excalidraw" for f in files)
-

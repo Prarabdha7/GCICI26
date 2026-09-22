@@ -32,7 +32,9 @@ def _resolve_publisher():
         return get_publisher()
     except PublisherError:
         if not settings.demo_mode:
-            log.error("No social keys configured in real mode — publish skipped honestly (set DEMO_MODE=true for a labeled demo)")
+            log.error(
+                "No social keys configured in real mode — publish skipped honestly (set DEMO_MODE=true for a labeled demo)"
+            )
             raise
         log.warning("No social keys configured — labeled DEMO MockPublisher")
         return MockPublisher()
@@ -56,16 +58,18 @@ def publish_approved_content() -> int:
         return 0
     provider = _provider_name(publisher)
     with session_scope() as db:
-        rows = list(
-            db.scalars(select(ContentQueue).where(ContentQueue.status == ContentStatus.APPROVED.value))
-        )
+        rows = list(db.scalars(select(ContentQueue).where(ContentQueue.status == ContentStatus.APPROVED.value)))
         for item in rows:
             content_id = item.id
             try:
                 post_id = publish_with_retry(publisher, item)
             except PublisherError as exc:
                 if settings.demo_mode and not isinstance(publisher, MockPublisher):
-                    log.warning("Live publisher failed (%s) in DEMO_MODE; falling back to MockPublisher for content_id=%s", exc, content_id)
+                    log.warning(
+                        "Live publisher failed (%s) in DEMO_MODE; falling back to MockPublisher for content_id=%s",
+                        exc,
+                        content_id,
+                    )
                     try:
                         fallback_pub = MockPublisher()
                         post_id = publish_with_retry(fallback_pub, item)
@@ -75,7 +79,13 @@ def publish_approved_content() -> int:
                         continue
                 else:
                     log.exception("publish failed for content_id=%s", content_id)
-                    log_event(db, content_id=content_id, event="failed", provider=provider, payload={"error": "publish failed"})
+                    log_event(
+                        db,
+                        content_id=content_id,
+                        event="failed",
+                        provider=provider,
+                        payload={"error": "publish failed"},
+                    )
                     continue
             item.external_post_id = post_id
             item.status = ContentStatus.SCHEDULED.value
@@ -97,9 +107,7 @@ def confirm_scheduled_as_published() -> int:
     """
     confirmed = 0
     with session_scope() as db:
-        rows = list(
-            db.scalars(select(ContentQueue).where(ContentQueue.status == ContentStatus.SCHEDULED.value))
-        )
+        rows = list(db.scalars(select(ContentQueue).where(ContentQueue.status == ContentStatus.SCHEDULED.value)))
         for item in rows:
             content_id = item.id
             is_mock = (item.external_post_id or "").startswith("mock-")
@@ -114,8 +122,21 @@ def confirm_scheduled_as_published() -> int:
             if not item.published_url and item.external_post_id:
                 item.published_url = f"https://mock.social/p/{item.external_post_id}"
             db.commit()
-            log_event(db, content_id=content_id, event="published", provider="mock-demo", external_post_id=item.external_post_id)
-            log_event(db, content_id=content_id, event="engagement", provider="mock-demo", external_post_id=item.external_post_id, payload={**metrics, "demo": True})
+            log_event(
+                db,
+                content_id=content_id,
+                event="published",
+                provider="mock-demo",
+                external_post_id=item.external_post_id,
+            )
+            log_event(
+                db,
+                content_id=content_id,
+                event="engagement",
+                provider="mock-demo",
+                external_post_id=item.external_post_id,
+                payload={**metrics, "demo": True},
+            )
             confirmed += 1
             log.info("published DEMO content_id=%s metrics=%s", content_id, metrics)
     return confirmed
@@ -125,9 +146,7 @@ def build_scheduler() -> BackgroundScheduler:
     from worker.intel import intel_sweep
 
     scheduler = BackgroundScheduler()
-    scheduler.add_job(
-        publish_approved_content, "interval", seconds=settings.publish_poll_interval, id=JOB_ID
-    )
+    scheduler.add_job(publish_approved_content, "interval", seconds=settings.publish_poll_interval, id=JOB_ID)
     scheduler.add_job(
         confirm_scheduled_as_published, "interval", seconds=settings.publish_poll_interval, id=ANALYTICS_JOB_ID
     )
@@ -137,9 +156,7 @@ def build_scheduler() -> BackgroundScheduler:
 
 def main() -> None:
     """Run the worker as a standalone process: `python -m worker.scheduler`."""
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)-8s %(name)s | %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-8s %(name)s | %(message)s")
     scheduler = build_scheduler()
     scheduler.start()
     log.info("Auto-publisher worker started — polling every %ss.", settings.publish_poll_interval)

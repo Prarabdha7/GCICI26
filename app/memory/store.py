@@ -13,7 +13,6 @@ the architecture: short-term human feedback is durable across server restarts
 and gradually shapes generated content toward brand-compliant output.
 """
 
-
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
@@ -72,4 +71,3 @@ def create_feedback_entry(
     db.commit()
     db.refresh(row)
     return row
-

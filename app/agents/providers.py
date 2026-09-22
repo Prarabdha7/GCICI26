@@ -74,10 +74,7 @@ class GooglePlacesDiscovery(BaseDiscoveryProvider):
         )
         response.raise_for_status()
         places = response.json().get("results", [])
-        return [
-            {"company_name": p.get("name", ""), "website": p.get("website", "")}
-            for p in places[:max_results]
-        ]
+        return [{"company_name": p.get("name", ""), "website": p.get("website", "")} for p in places[:max_results]]
 
 
 class ScrapeGraphClient:
@@ -133,9 +130,21 @@ def get_hunter_contacts(domain: str, *, api_key: str | None = None) -> list[dict
 # --------------------------------------------------------------------------- #
 
 MOCK_SEARCH_RESULTS: list[dict[str, Any]] = [
-    {"title": "Chubb Jewellers Block — HK exhibition limits tightened", "url": "https://example.test/chubb-jade", "snippet": "Chubb/Lloyds syndicates now require 7-day pre-approval for off-premises memo goods; exhibition transit sub-limits cut 20%."},
-    {"title": "MPS raises discretionary defence subscriptions 14%", "url": "https://example.test/mps-doctorshield", "snippet": "Medical Protection Society hikes aesthetic/ortho subscriptions; cover remains discretionary not contractual — doctors seek binding policies."},
-    {"title": "AXA XL marine cargo excludes unattended-vehicle theft", "url": "https://example.test/axa-jaguar", "snippet": "Regional cargo insurers impose 48h reporting deadlines and unattended-vehicle exclusions; SME couriers struggle with manual claims."},
+    {
+        "title": "Chubb Jewellers Block — HK exhibition limits tightened",
+        "url": "https://example.test/chubb-jade",
+        "snippet": "Chubb/Lloyds syndicates now require 7-day pre-approval for off-premises memo goods; exhibition transit sub-limits cut 20%.",
+    },
+    {
+        "title": "MPS raises discretionary defence subscriptions 14%",
+        "url": "https://example.test/mps-doctorshield",
+        "snippet": "Medical Protection Society hikes aesthetic/ortho subscriptions; cover remains discretionary not contractual — doctors seek binding policies.",
+    },
+    {
+        "title": "AXA XL marine cargo excludes unattended-vehicle theft",
+        "url": "https://example.test/axa-jaguar",
+        "snippet": "Regional cargo insurers impose 48h reporting deadlines and unattended-vehicle exclusions; SME couriers struggle with manual claims.",
+    },
 ]
 
 MOCK_PROSPECTS: list[dict[str, Any]] = [

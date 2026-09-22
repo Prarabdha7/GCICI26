@@ -22,7 +22,9 @@ import pytest
 from app.utils import research as research_utils
 
 
-def _install_fake_crawl4ai(monkeypatch, markdown_by_url: dict[str, str] | None = None, *, raise_for: set[str] | None = None):
+def _install_fake_crawl4ai(
+    monkeypatch, markdown_by_url: dict[str, str] | None = None, *, raise_for: set[str] | None = None
+):
     markdown_by_url = markdown_by_url or {}
     raise_for = raise_for or set()
 
@@ -54,10 +56,18 @@ def _install_fake_crawl4ai(monkeypatch, markdown_by_url: dict[str, str] | None =
 
 def test_search_urls_returns_hrefs_on_first_success(monkeypatch) -> None:
     monkeypatch.setattr(
-        research_utils, "DDGS",
-        lambda: type("D", (), {"text": lambda self, q, max_results=None: [
-            {"href": "https://a.test"}, {"href": "https://b.test"},
-        ]})(),
+        research_utils,
+        "DDGS",
+        lambda: type(
+            "D",
+            (),
+            {
+                "text": lambda self, q, max_results=None: [
+                    {"href": "https://a.test"},
+                    {"href": "https://b.test"},
+                ]
+            },
+        )(),
     )
     urls = research_utils._search_urls("query", max_results=2, attempts=3)
     assert urls == ["https://a.test", "https://b.test"]
@@ -205,8 +215,13 @@ def test_content_node_grounds_prompt_in_market_research(monkeypatch) -> None:
     monkeypatch.setattr(nodes_module, "text_call", fake_text_call)
 
     state = {
-        "brand": "Jade", "platform": "instagram", "language": "en", "draft_content": "",
-        "compliance_errors": [], "retry_count": 0, "feedback_guidance": "",
+        "brand": "Jade",
+        "platform": "instagram",
+        "language": "en",
+        "draft_content": "",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
         "market_research": "### https://a.test\nCompetitor X raised premiums 10%.",
     }
     nodes_module.content_node(state)
@@ -226,8 +241,13 @@ def test_content_node_omits_research_block_when_absent(monkeypatch) -> None:
     monkeypatch.setattr(nodes_module, "text_call", fake_text_call)
 
     state = {
-        "brand": "Jade", "platform": "instagram", "language": "en", "draft_content": "",
-        "compliance_errors": [], "retry_count": 0, "feedback_guidance": "",
+        "brand": "Jade",
+        "platform": "instagram",
+        "language": "en",
+        "draft_content": "",
+        "compliance_errors": [],
+        "retry_count": 0,
+        "feedback_guidance": "",
     }
     nodes_module.content_node(state)
 

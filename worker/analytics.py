@@ -21,8 +21,11 @@ def log_event(
     payload: dict | None = None,
 ) -> PublishEvent:
     row = PublishEvent(
-        content_id=content_id, event=event, provider=provider,
-        external_post_id=external_post_id, payload=payload or {},
+        content_id=content_id,
+        event=event,
+        provider=provider,
+        external_post_id=external_post_id,
+        payload=payload or {},
     )
     db.add(row)
     db.commit()

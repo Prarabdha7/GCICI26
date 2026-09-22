@@ -47,9 +47,7 @@ def dashboard_home(request: Request, db: Session = Depends(get_db)) -> HTMLRespo
             .order_by(ContentQueue.created_at.desc())
         )
     )
-    return templates.TemplateResponse(
-        request, "dashboard.html", {"items": items, "active_tab": "queue"}
-    )
+    return templates.TemplateResponse(request, "dashboard.html", {"items": items, "active_tab": "queue"})
 
 
 @router.get("/dashboard/manual-intervention", response_class=HTMLResponse)
@@ -90,7 +88,9 @@ def metrics_view(request: Request, db: Session = Depends(get_db)) -> HTMLRespons
     # edit-distance telemetry from human-edited REAL rows (draft vs final)
     edited = list(
         db.scalars(
-            select(ContentQueue).where(ContentQueue.final_content.is_not(None), ContentQueue.is_demo.is_(False)).limit(200)
+            select(ContentQueue)
+            .where(ContentQueue.final_content.is_not(None), ContentQueue.is_demo.is_(False))
+            .limit(200)
         )
     )
     distances = [_edit_distance(r.draft_content or "", r.final_content or "") for r in edited if r.final_content]
@@ -104,7 +104,9 @@ def metrics_view(request: Request, db: Session = Depends(get_db)) -> HTMLRespons
             "active_tab": "metrics",
             "by_status": by_status,
             "rejection_rate": round(rejected / decided, 4) if decided else 0.0,
-            "avg_retries": round(db.scalar(select(func.avg(ContentQueue.retry_count)).where(ContentQueue.is_demo.is_(False))) or 0.0, 2),
+            "avg_retries": round(
+                db.scalar(select(func.avg(ContentQueue.retry_count)).where(ContentQueue.is_demo.is_(False))) or 0.0, 2
+            ),
             "feedback_entries": db.scalar(select(func.count(FeedbackMemory.id))) or 0,
             "leads": db.scalar(select(func.count(Lead.id))) or 0,
             "avg_edit_distance": avg_edit,
@@ -227,7 +229,15 @@ def queue_detail(content_id: int, request: Request, db: Session = Depends(get_db
     return templates.TemplateResponse(
         request,
         "queue_detail.html",
-        {"item": item, "error_tags": [tag.value for tag in ErrorTag], "media": media, "image_urls": image_urls, "captions": captions, "diff_rows": diff_rows, "pack": pack},
+        {
+            "item": item,
+            "error_tags": [tag.value for tag in ErrorTag],
+            "media": media,
+            "image_urls": image_urls,
+            "captions": captions,
+            "diff_rows": diff_rows,
+            "pack": pack,
+        },
     )
 
 
@@ -256,8 +266,12 @@ def reject(
     item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
     create_feedback_entry(
-        db, brand=item.brand, platform=item.platform,
-        error_tag=error_tag, human_note=human_note, content_id=item.id,
+        db,
+        brand=item.brand,
+        platform=item.platform,
+        error_tag=error_tag,
+        human_note=human_note,
+        content_id=item.id,
     )
     return _action_response(request)
 
@@ -278,8 +292,12 @@ def edit(
     item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
     create_feedback_entry(
-        db, brand=item.brand, platform=item.platform,
-        error_tag=error_tag, human_note=human_note, content_id=item.id,
+        db,
+        brand=item.brand,
+        platform=item.platform,
+        error_tag=error_tag,
+        human_note=human_note,
+        content_id=item.id,
     )
     return _action_response(request)
 
@@ -361,9 +379,7 @@ def generate_campaign(
         )
     finally:
         db.close()
-    return templates.TemplateResponse(
-        request, "dashboard.html", {"items": items, "active_tab": "queue", "banner": msg}
-    )
+    return templates.TemplateResponse(request, "dashboard.html", {"items": items, "active_tab": "queue", "banner": msg})
 
 
 @router.post("/dashboard/queue/{content_id}/accept-fix")
@@ -380,8 +396,12 @@ def accept_fix(content_id: int, request: Request, db: Session = Depends(get_db))
     item.reviewed_at = dt.datetime.now(dt.UTC)
     db.commit()
     create_feedback_entry(
-        db, brand=item.brand, platform=item.platform,
-        error_tag="compliance_risk", human_note="Accepted self-healing fix.", content_id=item.id,
+        db,
+        brand=item.brand,
+        platform=item.platform,
+        error_tag="compliance_risk",
+        human_note="Accepted self-healing fix.",
+        content_id=item.id,
     )
     return _action_response(request)
 
@@ -406,10 +426,19 @@ def newsjack(
         graph = build_graph()
         final_state = graph.invoke(
             {
-                "draft_content": "", "brand": brand, "platform": platform,
-                "language": language, "topic": topic, "content_type": "post",
-                "enable_adversarial": True, "compliance_errors": [], "retry_count": 0,
-                "feedback_guidance": "", "media_path": None, "status": "", "content_id": None,
+                "draft_content": "",
+                "brand": brand,
+                "platform": platform,
+                "language": language,
+                "topic": topic,
+                "content_type": "post",
+                "enable_adversarial": True,
+                "compliance_errors": [],
+                "retry_count": 0,
+                "feedback_guidance": "",
+                "media_path": None,
+                "status": "",
+                "content_id": None,
             },
             config={"configurable": {"thread_id": str(uuid.uuid4())}},
         )
@@ -428,6 +457,4 @@ def newsjack(
         )
     finally:
         db.close()
-    return templates.TemplateResponse(
-        request, "dashboard.html", {"items": items, "active_tab": "queue", "banner": msg}
-    )
+    return templates.TemplateResponse(request, "dashboard.html", {"items": items, "active_tab": "queue", "banner": msg})

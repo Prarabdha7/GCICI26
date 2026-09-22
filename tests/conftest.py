@@ -24,9 +24,7 @@ def _isolated_database():
     Base.metadata.create_all(bind=engine)
 
     database.engine = engine
-    database.SessionLocal = sessionmaker(
-        bind=engine, autoflush=False, autocommit=False, expire_on_commit=False
-    )
+    database.SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
     yield
     engine.dispose()
 
