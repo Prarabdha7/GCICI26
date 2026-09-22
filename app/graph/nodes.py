@@ -272,14 +272,20 @@ def video_assembly_node(state: MarketingState) -> dict:
 
 
 def _image_prompt(brand: str, draft: str) -> str:
+    """The actual subject (what was written) leads the prompt; brand identity
+    trails as a style/palette modifier. Leading with "for {brand} ({niche})"
+    dominated keyword-driven image models (confirmed live via the Pollinations
+    fallback) regardless of what the draft actually said — an off-niche
+    topic still rendered as generic brand-niche imagery."""
     from app.agents.brand_knowledge import get_brand
 
     info = get_brand(brand)
     colors = info.get("colors", {})
+    subject = (draft or "").strip()[:250] or f"{info['niche']} marketing visual"
     return (
-        f"A professional marketing image for {info['name']} ({info['niche']}). "
-        f"Brand voice: {info['voice']}. Palette: {colors.get('primary', '')} and "
-        f"{colors.get('secondary', '')}. Subject: {draft[:200]}. "
+        f"{subject} "
+        f"Style: professional marketing photo for {info['name']}, a {info['niche']} brand. "
+        f"Voice: {info['voice']}. Accent palette: {colors.get('primary', '')} and {colors.get('secondary', '')}. "
         "No text overlay, no logos, photorealistic or tasteful editorial "
         "illustration suitable for an Instagram post."
     )
