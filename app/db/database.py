@@ -56,10 +56,37 @@ def session_scope() -> Iterator[Session]:
 
 
 def init_db() -> None:
-    """Create every table that does not yet exist."""
+    """Create every table that does not yet exist, then additively backfill
+    columns added after a database was first created (preserves existing rows —
+    deleting the .db file is never required for additive schema changes)."""
+    from sqlalchemy import inspect, text
+
     from app.db import models  # noqa: F401  (registers models on Base.metadata)
     from app.db.models import Base
 
     Base.metadata.create_all(bind=engine)
+    with engine.begin() as conn:
+        inspector = inspect(conn)
+        for table in Base.metadata.tables.values():
+            try:
+                present = {col["name"] for col in inspector.get_columns(table.name)}
+            except Exception:
+                continue
+            for column in table.columns:
+                if column.name not in present:
+                    ddl = f"ALTER TABLE {table.name} ADD COLUMN {column.name} {column.type.compile(dialect=conn.dialect)}"
+                    if column.default is not None and getattr(column.default, "arg", None) is not None:
+                        ddl += f" DEFAULT {column.default.arg!r}" if isinstance(column.default.arg, str) else ""
+                    try:
+                        conn.execute(text(ddl))
+                        log.info("Migrated %s: added column %s", table.name, column.name)
+                        arg = getattr(column.default, "arg", None)
+                        if isinstance(arg, bool):
+                            conn.execute(
+                                text(f"UPDATE {table.name} SET {column.name} = :v WHERE {column.name} IS NULL"),
+                                {"v": int(arg)},
+                            )
+                    except Exception:
+                        log.exception("Migration failed for %s.%s", table.name, column.name)
     tables = ", ".join(sorted(Base.metadata.tables))
     log.info("Database ready at %s — tables: %s", settings.database_url, tables)

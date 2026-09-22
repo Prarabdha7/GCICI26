@@ -35,6 +35,13 @@ temp/
 *.mp4.tmp
 TEMP_MPY_*
 
+# --- local-only sample content (never committed) ---
+# Machine-local demo/seed/mock data lives here (see local/samples.example.json
+# for the shape). The repo ships zero baked-in samples; without this directory
+# the app runs real-only and says so honestly.
+/local/
+!/local/samples.example.json
+
 # --- langgraph / caches ---
 .langgraph_api/
 checkpoints.sqlite

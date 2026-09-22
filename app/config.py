@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     # rows) are allowed ONLY when DEMO_MODE=true, and are always labeled
     # demo/mock in the DB and UI. Default false = real-only, honest failures.
     demo_mode: bool = False
+    # Machine-local sample content backing the demo path (gitignored; see
+    # local/samples.example.json). Relative paths resolve against BASE_DIR.
+    local_samples_path: str = "local/demo_samples.json"
 
     # --- research / scraping (Phase 5) ---
     serper_api_key: str = ""

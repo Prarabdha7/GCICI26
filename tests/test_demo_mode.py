@@ -106,3 +106,67 @@ def test_seed_script_refuses_real_mode(monkeypatch) -> None:
 
     monkeypatch.setattr(settings, "demo_mode", False)
     assert seed_demo.main() == 2
+
+
+def test_local_samples_missing_file_is_honest_empty(monkeypatch, tmp_path) -> None:
+    from app.agents import local_samples
+
+    monkeypatch.setattr(settings, "local_samples_path", str(tmp_path / "absent.json"))
+    assert local_samples.search_results() == []
+    assert local_samples.prospects() == []
+    assert local_samples.personas() == {}
+    assert local_samples.seed_rows() == {}
+
+
+def test_local_samples_personas_drive_focus_group(monkeypatch, tmp_path) -> None:
+    import json
+
+    from app.agents import local_samples
+    from app.agents.formats import focus_group_notes
+
+    samples = tmp_path / "samples.json"
+    samples.write_text(json.dumps({"personas": {
+        "doctor": {"match": ["doctor"], "specific": "SPECIFIC-DOC", "na": "NA-DOC"},
+        "goldsmith": {"match": ["jade"], "specific": "SPECIFIC-JADE", "na": "NA-JADE"},
+        "freight": {"match": ["jaguar"], "specific": "SPECIFIC-JAG", "na": "NA-JAG"},
+        "guarantee_flag": "FLAG",
+    }}), encoding="utf-8")
+    monkeypatch.setattr(settings, "local_samples_path", str(samples))
+    notes = focus_group_notes("guaranteed cover", "Jade")
+    assert "SPECIFIC-JADE" in notes and "NA-DOC" in notes and "FLAG" in notes
+    assert local_samples.personas()["doctor"]["specific"] == "SPECIFIC-DOC"
+
+
+def test_seed_demo_loads_rows_from_local_file(monkeypatch, tmp_path) -> None:
+    import json
+
+    from scripts import seed_demo
+
+    samples = tmp_path / "samples.json"
+    samples.write_text(json.dumps({"seed_rows": {
+        "content": [{"brand": "Jade", "platform": "linkedin", "language": "en",
+                     "draft_content": "tmp demo", "status": "pending"}],
+        "feedback": [], "leads": [],
+    }}), encoding="utf-8")
+    monkeypatch.setattr(settings, "local_samples_path", str(samples))
+    monkeypatch.setattr(settings, "demo_mode", True)
+    monkeypatch.setattr(seed_demo, "_ensure_sample_media", lambda: None)
+    assert seed_demo.main() == 0
+    with session_scope() as db:
+        from sqlalchemy import select
+
+        row = db.scalars(select(ContentQueue).where(ContentQueue.is_demo.is_(True))).one()
+        assert row.draft_content == "tmp demo"
+
+
+def test_seed_demo_seeds_nothing_without_local_file(monkeypatch, tmp_path) -> None:
+    from scripts import seed_demo
+
+    monkeypatch.setattr(settings, "local_samples_path", str(tmp_path / "absent.json"))
+    monkeypatch.setattr(settings, "demo_mode", True)
+    monkeypatch.setattr(seed_demo, "_ensure_sample_media", lambda: None)
+    assert seed_demo.main() == 0
+    with session_scope() as db:
+        from sqlalchemy import select
+
+        assert db.scalar(select(ContentQueue.id).limit(1)) is None

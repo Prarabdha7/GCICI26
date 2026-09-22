@@ -106,6 +106,9 @@ python -m worker.scheduler
   `is_demo=true` rows, DEMO badges in the dashboard. Demo rows never enter real metrics.
 - Simulated writes exist **only** to demonstrate how the pipeline works. They are never
   used for, mixed into, or claimed as real results.
+- Sample content (mock intel, personas, seed rows) lives machine-local in `local/`
+  (gitignored; see `local/samples.example.json` for the shape). The repo ships zero
+  baked-in samples — without that file the app runs real-only and says so honestly.
 
 ## Demo (3 min)
 

@@ -140,7 +140,11 @@ def test_research_node_builds_digest_from_live_research(monkeypatch) -> None:
     assert "jewellers" in captured["query"]
 
 
-def test_research_node_falls_back_to_mock_digest_when_live_research_is_empty(monkeypatch) -> None:
+def test_research_node_falls_back_to_mock_digest_when_live_research_is_empty(monkeypatch, tmp_path) -> None:
+    import json
+
+    from app.config import settings
+
     captured = {}
 
     async def fake_research_summary(query, **kw):
@@ -150,13 +154,18 @@ def test_research_node_falls_back_to_mock_digest_when_live_research_is_empty(mon
         captured["user"] = user
         return "digest"
 
+    samples = tmp_path / "samples.json"
+    samples.write_text(json.dumps({"search_results": [
+        {"title": "Chubb test", "url": "https://example.test/chubb", "snippet": "chubb snippet"},
+    ]}), encoding="utf-8")
+    monkeypatch.setattr(settings, "local_samples_path", str(samples))
     monkeypatch.setattr(research_module, "research_summary", fake_research_summary)
     monkeypatch.setattr(research_module, "text_call", fake_text_call)
 
     research_module.research_node({"brand": "Jade", "niche": "jewellers", "country": "SG"})
 
-    # MockSearchProvider's canned results should ground the fallback digest.
-    assert "chubb" in captured["user"].lower() or "jade" in captured["user"].lower()
+    # The local sample file's results should ground the fallback digest.
+    assert "chubb" in captured["user"].lower()
 
 
 # --------------------------------------------------------------------------- #

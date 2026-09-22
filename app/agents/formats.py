@@ -49,23 +49,26 @@ def _offline_pack(draft: str, brand: str) -> dict:
 
 
 def focus_group_notes(draft: str, brand: str) -> list[str]:
-    """Synthetic pre-publication panel — DEMO ONLY, always labeled as personas."""
+    """Synthetic pre-publication panel — DEMO ONLY, personas load machine-local
+    (local/demo_samples.json) and every note is labeled. Absent file = no
+    personas, never invented opinions."""
+    from app.agents import local_samples
+
+    panels = local_samples.personas()
     b = (brand or "").lower()
-    notes = []
-    if "doctor" in b or "shield" in b:
-        notes.append("[DEMO persona] Dr. Kevin Lim (surgeon): avoid 'malpractice', say 'inquiry/defence'; keep peer tone.")
-    else:
-        notes.append("[DEMO persona] Dr. Kevin Lim: n/a for non-medical brand.")
-    if "jade" in b:
-        notes.append("[DEMO persona] Madam Chen (goldsmith): demand memo-goods + discretion wording; no safe-grade details.")
-    else:
-        notes.append("[DEMO persona] Madam Chen: discretion angle added.")
-    if "jaguar" in b or "transit" in b:
-        notes.append("[DEMO persona] Marcus Tan (freight): demand chain-of-custody + telematics terms.")
-    else:
-        notes.append("[DEMO persona] Marcus Tan: transit terms n/a.")
-    if "guarantee" in (draft or "").lower():
-        notes.append("[DEMO persona] Panel flag: absolute guarantee language — must soften before human review.")
+    notes: list[str] = []
+    for key in ("doctor", "goldsmith", "freight"):
+        panel = panels.get(key, {})
+        matches = panel.get("match", []) if isinstance(panel, dict) else []
+        specific = panel.get("specific") if isinstance(panel, dict) else None
+        fallback = panel.get("na") if isinstance(panel, dict) else None
+        if specific and any(m in b for m in matches):
+            notes.append(specific)
+        elif fallback:
+            notes.append(fallback)
+    flag = panels.get("guarantee_flag") if isinstance(panels, dict) else None
+    if flag and "guarantee" in (draft or "").lower():
+        notes.append(flag)
     return notes
 
 

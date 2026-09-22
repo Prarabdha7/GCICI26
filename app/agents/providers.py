@@ -12,6 +12,7 @@ from typing import Any
 
 import httpx
 
+from app.agents import local_samples
 from app.config import settings
 
 
@@ -128,60 +129,56 @@ def get_hunter_contacts(domain: str, *, api_key: str | None = None) -> list[dict
 
 
 # --------------------------------------------------------------------------- #
-# Zero-key mocks — never change the strict get_* above (tests assert they raise).
-# Callers try strict first, then fall back to these so demos never crash.
+# Demo-path mocks — data lives machine-local (local/demo_samples.json,
+# gitignored); the repo ships zero baked-in samples. Absent file = empty
+# results, never invented content. Strict get_* above are unchanged (tests
+# assert they raise).
 # --------------------------------------------------------------------------- #
 
-MOCK_SEARCH_RESULTS: list[dict[str, Any]] = [
-    {"title": "Chubb Jewellers Block — HK exhibition limits tightened", "url": "https://example.test/chubb-jade", "snippet": "Chubb/Lloyds syndicates now require 7-day pre-approval for off-premises memo goods; exhibition transit sub-limits cut 20%."},
-    {"title": "MPS raises discretionary defence subscriptions 14%", "url": "https://example.test/mps-doctorshield", "snippet": "Medical Protection Society hikes aesthetic/ortho subscriptions; cover remains discretionary not contractual — doctors seek binding policies."},
-    {"title": "AXA XL marine cargo excludes unattended-vehicle theft", "url": "https://example.test/axa-jaguar", "snippet": "Regional cargo insurers impose 48h reporting deadlines and unattended-vehicle exclusions; SME couriers struggle with manual claims."},
-]
-
-MOCK_PROSPECTS: list[dict[str, Any]] = [
-    {"company_name": "Orchard Gem House", "website": "https://orchard-gem.test"},
-    {"company_name": "KL Goldsmith Collective", "website": "https://kl-gold.test"},
-    {"company_name": "Causeway Secure Logistics", "website": "https://causeway-logistics.test"},
-    {"company_name": "Novena Specialist Clinic", "website": "https://novena-clinic.test"},
-]
-
-
 class MockSearchProvider(BaseSearchProvider):
-    """Deterministic zero-cost search — brand-aware slice of MOCK_SEARCH_RESULTS."""
+    """Deterministic zero-cost search — brand-aware slice of the local sample file."""
 
     def search(self, query: str, *, max_results: int = 5) -> list[dict[str, Any]]:
+        data = local_samples.search_results()
         q = (query or "").lower()
         if "doctor" in q or "medic" in q or "clinic" in q:
-            preferred = [r for r in MOCK_SEARCH_RESULTS if "mps" in r["url"] or "doctorshield" in r["url"]]
+            preferred = [r for r in data if "mps" in r.get("url", "") or "doctorshield" in r.get("url", "")]
         elif "transit" in q or "cargo" in q or "logistic" in q or "jaguar" in q:
-            preferred = [r for r in MOCK_SEARCH_RESULTS if "axa" in r["url"] or "jaguar" in r["url"]]
+            preferred = [r for r in data if "axa" in r.get("url", "") or "jaguar" in r.get("url", "")]
         else:
-            preferred = [r for r in MOCK_SEARCH_RESULTS if "chubb" in r["url"] or "jade" in r["url"]]
-        rest = [r for r in MOCK_SEARCH_RESULTS if r not in preferred]
+            preferred = [r for r in data if "chubb" in r.get("url", "") or "jade" in r.get("url", "")]
+        rest = [r for r in data if r not in preferred]
         return (preferred + rest)[:max_results]
 
 
 class MockDiscoveryProvider(BaseDiscoveryProvider):
-    """Deterministic prospect list filtered by niche keywords."""
+    """Deterministic prospect list from the local sample file, filtered by niche."""
 
     def discover(self, *, niche: str, country: str, max_results: int = 10) -> list[dict[str, Any]]:
+        data = local_samples.prospects()
         n = (niche or "").lower()
         if "clinic" in n or "medic" in n or "doctor" in n:
-            picks = [p for p in MOCK_PROSPECTS if "clinic" in p["website"]]
+            picks = [p for p in data if "clinic" in p.get("website", "")]
         elif "courier" in n or "transit" in n or "logistic" in n or "cargo" in n:
-            picks = [p for p in MOCK_PROSPECTS if "logistics" in p["website"]]
+            picks = [p for p in data if "logistics" in p.get("website", "")]
         elif "jewel" in n or "gold" in n or "gem" in n:
-            picks = [p for p in MOCK_PROSPECTS if "gem" in p["website"] or "gold" in p["website"]]
+            picks = [p for p in data if "gem" in p.get("website", "") or "gold" in p.get("website", "")]
         else:
-            picks = MOCK_PROSPECTS
+            picks = data
         return picks[:max_results]
 
 
 class MockScrapeGraphClient:
-    """Offline markdown extractor — returns canned competitor excerpts."""
+    """Offline markdown extractor — template from the local sample file."""
 
     def extract_markdown(self, url: str) -> str:
-        return f"# Competitor brief ({url})\n\nKey shift: tighter warranties, slower onboarding. Gap for JA Assure: instant memo / per-consignment bind + contractual wording. Source: cached zero-key digest."
+        template = local_samples.scrape_template()
+        if not template:
+            return ""
+        try:
+            return template.format(url=url)
+        except (IndexError, KeyError):
+            return template
 
 
 def get_search_provider_resilient() -> BaseSearchProvider:
