@@ -159,18 +159,11 @@ LEAD_ROWS = [
 
 def _load_seed_table(name: str) -> list[dict]:
     """Seed rows load machine-local (local/demo_samples.json, gitignored).
-    If absent or empty, falls back to the default canned demo rows."""
+    Absent file or empty table = seed nothing for that table, honestly."""
     from app.agents import local_samples
 
     tables = local_samples.seed_rows()
     rows = tables.get(name, [])
-    if not rows:
-        if name == "content":
-            rows = CONTENT_QUEUE_ROWS
-        elif name == "feedback":
-            rows = FEEDBACK_MEMORY_ROWS
-        elif name == "leads":
-            rows = LEAD_ROWS
     cleaned = []
     for row in rows:
         if not isinstance(row, dict):
