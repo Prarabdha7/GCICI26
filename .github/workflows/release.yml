@@ -1,0 +1,218 @@
+# ============================================================================
+# Release — JA Assure AI Marketing System
+#
+# Triggered exclusively by version tags matching the pattern v*.*.* (e.g.
+# v1.0.0, v2.3.1-rc1).  Produces two outputs:
+#
+#   1. Docker image — built with BuildKit, pushed to GitHub Container Registry
+#      (ghcr.io) under two tags:
+#        - ghcr.io/<owner>/<repo>:<version>   e.g. ghcr.io/prarabdha7/gcici26:v1.2.0
+#        - ghcr.io/<owner>/<repo>:latest       always points at the newest release
+#
+#   2. GitHub Release — automatically created from the tag with an
+#      auto-generated changelog drawn from commit messages since the previous
+#      tag.  The Docker image digest is appended to the release body so every
+#      release is fully reproducible.
+#
+# The build job re-runs the full test suite before pushing the image so a
+# tag push cannot accidentally ship a broken container.  The test step uses
+# the same blanked-secret env as ci.yml to keep the run hermetic.
+#
+# Required repository secrets (Settings -> Secrets -> Actions):
+#   GEMINI_API_KEY     — used only at runtime, not during the build.
+#   (No secrets are needed to push to GHCR — the GITHUB_TOKEN is sufficient.)
+# ============================================================================
+
+name: Release
+
+on:
+  push:
+    tags:
+      # Match SemVer tags with an optional pre-release suffix.
+      # Examples: v1.0.0  v2.3.1-rc1  v0.9.0-beta.2
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+
+# Write permission on packages is required to push the Docker image to GHCR.
+# Write permission on contents is required to create the GitHub Release.
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+
+  # --------------------------------------------------------------------------
+  # Job: verify
+  # Runs the full test suite on Python 3.12 before the image build starts.
+  # Prevents a broken tag from producing a published container.
+  # --------------------------------------------------------------------------
+  verify:
+    name: Pre-release test gate (Python 3.12)
+    runs-on: ubuntu-latest
+
+    env:
+      ENVIRONMENT: dev
+      DEMO_MODE: "false"
+      LLM_PROVIDER: gemini
+      GEMINI_API_KEY: ""
+      OPENAI_API_KEY: ""
+      SERPER_API_KEY: ""
+      SCRAPEGRAPH_API_KEY: ""
+      GOOGLE_PLACES_API_KEY: ""
+      HUNTER_API_KEY: ""
+      BUFFER_ACCESS_TOKEN: ""
+      AYRSHARE_API_KEY: ""
+      PEXELS_API_KEY: ""
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Initialise database schema
+        run: python -m scripts.init_db
+
+      - name: Run test suite
+        run: python -m pytest tests/ --tb=short --strict-markers -q
+
+
+  # --------------------------------------------------------------------------
+  # Job: build-and-push
+  # Builds a multi-platform Docker image (linux/amd64 + linux/arm64) and
+  # pushes it to GitHub Container Registry.
+  #
+  # BuildKit cache is stored in the GitHub Actions cache store so successive
+  # builds of the same branch reuse unchanged layers.
+  #
+  # The image is tagged with:
+  #   - The exact version tag (e.g. v1.2.0)  — permanent, immutable reference
+  #   - 'latest'                              — floating pointer to newest release
+  # --------------------------------------------------------------------------
+  build-and-push:
+    name: Build and push Docker image
+    runs-on: ubuntu-latest
+    needs: verify
+
+    # Expose the image digest as a job output so the release job can embed
+    # it in the release body for provenance.
+    outputs:
+      image-digest: ${{ steps.push.outputs.digest }}
+      image-ref: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # Log into GHCR using the repository-scoped GITHUB_TOKEN — no long-lived
+      # personal access token required.  The token is automatically rotated per
+      # workflow run by GitHub.
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Set up QEMU so BuildKit can cross-compile ARM64 layers on the AMD64
+      # runner without a native ARM machine.
+      - name: Set up QEMU (cross-platform emulation)
+        uses: docker/setup-qemu-action@v3
+
+      # Buildx is required for multi-platform builds and for the cache-to/
+      # cache-from directives used below.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Extract tags and labels from git metadata.
+      # docker/metadata-action generates:
+      #   - ghcr.io/<owner>/<repo>:<version-tag>
+      #   - ghcr.io/<owner>/<repo>:latest
+      #   - OCI annotations: org.opencontainers.image.{title,description,url,...}
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+
+      - name: Build and push image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          # linux/arm64 covers Apple Silicon, AWS Graviton, and Raspberry Pi.
+          # Remove it if the CI minutes cost is a concern — amd64 alone is
+          # sufficient for most cloud deployments.
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Inline cache embeds the cache manifest in the pushed image layers
+          # so other runners can reuse it without a separate registry layer.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+
+  # --------------------------------------------------------------------------
+  # Job: github-release
+  # Creates a GitHub Release from the pushed tag.  The release body is
+  # auto-generated from commit messages since the previous tag and includes
+  # the Docker image digest for reproducible provenance tracing.
+  # --------------------------------------------------------------------------
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          # Full history is required so the changelog generator can traverse
+          # commits back to the previous tag.
+          fetch-depth: 0
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          # generate_release_notes: use GitHub's built-in changelog generator
+          # which groups commits by type (feat, fix, docs, chore) if the repo
+          # uses Conventional Commits, or produces a flat list otherwise.
+          generate_release_notes: true
+          body: |
+            ## Docker Image
+
+            Pull the released image:
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ```
+
+            Image digest (for pinned deployments):
+            ```
+            ${{ needs.build-and-push.outputs.image-digest }}
+            ```
+
+            Run locally with required environment variables:
+            ```bash
+            docker run \
+              -e GEMINI_API_KEY=your_key \
+              -e LLM_PROVIDER=gemini \
+              -p 8000:8000 \
+              ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ```

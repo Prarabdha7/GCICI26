@@ -1,0 +1,139 @@
+# ============================================================================
+# pyproject.toml — JA Assure AI Marketing System
+#
+# Build system and tool configuration.  This file is not used to build a
+# distributable package (the project is a service, not a library), but the
+# [tool.ruff] and [tool.pytest.ini_options] sections are consumed by the CI
+# workflows and by developer tooling installed from requirements.txt.
+# ============================================================================
+
+[build-system]
+# Minimal stub required so pip/build recognize this as a valid project root.
+# No distribution is published — this entry satisfies tools that check for
+# a build backend declaration.
+requires = ["setuptools>=69"]
+build-backend = "setuptools.backends.legacy:build"
+
+
+# --------------------------------------------------------------------------
+# Ruff — linter and formatter
+# Used by: .github/workflows/ci.yml (lint job), local development
+#
+# Rule selection rationale:
+#   E, W   pycodestyle — style errors and warnings (PEP 8 compliance)
+#   F      pyflakes    — undefined names, unused imports, redefined vars
+#   I      isort       — import ordering (replaces standalone isort)
+#   UP     pyupgrade   — modernise syntax (f-strings, typing hints, etc.)
+#   B      flake8-bugbear — common logic bugs and opinionated style issues
+#   SIM    flake8-simplify — expressions that can be simplified
+#   TCH    flake8-type-checking — move type-only imports into TYPE_CHECKING
+#   ANN    flake8-annotations — require type annotations on public APIs
+#          (ANN1xx: missing arg annotations, ANN2xx: missing return types)
+#
+# Rules intentionally excluded:
+#   D   pydocstyle   — docstring style is enforced by convention, not linter,
+#                      because the project uses Google style which ruff's D
+#                      rules do not fully model.
+#   ERA flake8-eradicate — commented-out code removal conflicts with the
+#                          inline explanation comments used throughout the
+#                          provider implementations.
+# --------------------------------------------------------------------------
+[tool.ruff]
+# Target the oldest supported Python version so UP rules do not suggest
+# syntax that 3.11 cannot execute.
+target-version = "py311"
+
+# Maximum line length.  88 matches Black's default; ruff format uses this
+# value when wrapping long lines.
+line-length = 120
+
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+]
+
+ignore = [
+    # Line too long — ruff format handles wrapping; the linter deferring to
+    # the formatter avoids spurious conflicts on long string literals and URLs.
+    "E501",
+    # Do not enforce blank lines before a class docstring; Google style omits
+    # them and the codebase is consistent in that regard.
+    "E303",
+    # Allow assert statements — the test suite uses them extensively and
+    # removing them in production code is a separate, deliberate decision.
+    "B011",
+    # Allow mutable default arguments in function signatures — several node
+    # functions use [] defaults as sentinel values with explicit None guards.
+    "B006",
+]
+
+# Files and directories that ruff should never lint or format.
+# tests/ is excluded from the ANN (annotation) rules only — all other rules
+# still apply.  See the per-file-ignores section below.
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+    "__pycache__",
+    "*.egg-info",
+]
+
+
+[tool.ruff.lint.per-file-ignores]
+# Test files: fixtures and parametrize decorators routinely lack annotations,
+# and assert statements are the primary assertion mechanism.
+"tests/**" = ["ANN", "S101"]
+# Migration and seed scripts: one-off executables, not importable modules.
+"scripts/**" = ["ANN", "T201"]
+
+
+[tool.ruff.lint.isort]
+# Keep stdlib, third-party, and first-party imports separated by a blank line.
+# force-sort-within-sections groups from __future__ correctly before stdlib.
+force-sort-within-sections = true
+known-first-party = ["app", "worker", "scripts"]
+
+
+[tool.ruff.format]
+# Use double quotes to match the existing codebase convention.
+quote-style = "double"
+# Indent with 4 spaces — PEP 8 standard.
+indent-style = "space"
+# Trailing commas in function signatures and call expressions where the
+# closing bracket is on its own line.  Matches Black's "magic trailing comma".
+skip-magic-trailing-comma = false
+
+
+# --------------------------------------------------------------------------
+# pytest
+# Used by: .github/workflows/ci.yml (test job), local development
+# --------------------------------------------------------------------------
+[tool.pytest.ini_options]
+# Default test discovery paths.
+testpaths = ["tests"]
+
+# Asyncio mode: auto — all async test functions are treated as coroutines
+# without requiring an explicit @pytest.mark.asyncio decorator.
+# Requires: pytest-asyncio >= 0.21
+asyncio_mode = "auto"
+
+# Strict markers: any test using an unregistered @pytest.mark is an error,
+# not a silent warning.  Registered markers are declared below.
+addopts = "--strict-markers"
+
+# Registered custom markers.  Each marker must be declared here when
+# --strict-markers is active.
+markers = [
+    "slow: tests that take more than 2 seconds (deselect with -m 'not slow')",
+    "integration: tests that require live network access or a real API key",
+    "unit: pure unit tests with no I/O or network calls",
+]

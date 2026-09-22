@@ -1,0 +1,73 @@
+# ============================================================================
+# .dockerignore — JA Assure AI Marketing System
+#
+# Controls which files from the build context are sent to the Docker daemon.
+# Excluding large or sensitive files reduces build time, prevents secrets
+# from entering the image, and keeps image layers lean.
+#
+# Rule of thumb: if a path is in .gitignore for security or size reasons,
+# it belongs here too.  The overlap is intentional — the two files serve
+# the same filtering purpose for different consumers (git vs docker build).
+# ============================================================================
+
+# --- secrets: must never enter the image ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+service-account*.json
+
+# --- version control overhead ---
+.git/
+.gitignore
+
+# --- Python build artefacts and caches ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- databases (rebuilt by init_db inside the image) ---
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# --- generated media (large, rebuildable at runtime) ---
+assets/generated/
+temp/
+*.mp4.tmp
+TEMP_MPY_*
+vault/
+
+# --- development tooling not needed at runtime ---
+tests/
+docs/
+scripts/seed_demo.py
+
+# --- CI/CD configuration (not needed inside the container) ---
+.github/
+
+# --- editor and OS noise ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.log
+logs/
+
+# --- hackathon internal reference document ---
+JA-Assure-SRM-Hackathon.pdf
+CLAUDE.md
+PLAN.md

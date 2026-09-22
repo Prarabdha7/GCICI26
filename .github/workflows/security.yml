@@ -1,0 +1,133 @@
+# ============================================================================
+# Security Scanning — JA Assure AI Marketing System
+#
+# Runs on every push to main and on a weekly cron so newly disclosed CVEs
+# surface between code changes.  Two independent jobs run in parallel:
+#
+#   pip-audit  — scans the pinned dependency graph against the OSV database
+#                (PyPA advisory feed).  Fails the workflow on any known
+#                vulnerability with a fix available; advisory-only findings
+#                (no fix yet) are reported but do not block.
+#
+#   trufflehog — scans the full git history for accidentally committed secrets
+#                (API keys, bearer tokens, PEM blocks).  Uses the verified
+#                detector set so false positives from test fixtures are low.
+#                A finding causes an immediate non-zero exit.
+#
+# Neither job has write access to the repository (permissions: read-only).
+# ============================================================================
+
+name: Security
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    # 02:00 UTC every Monday — offset from midnight to reduce runner contention
+    # on popular schedule windows.
+    - cron: "0 2 * * 1"
+  # Allow manual dispatch for ad-hoc vulnerability checks during incident
+  # response or before a production deployment.
+  workflow_dispatch:
+
+# The security workflow should never modify the repository.
+permissions:
+  contents: read
+
+jobs:
+
+  # --------------------------------------------------------------------------
+  # Job: pip-audit
+  # Resolves the dependency graph from requirements.txt and cross-references
+  # every pinned package version against the Open Source Vulnerabilities (OSV)
+  # database — the same feed used by deps.dev and GitHub Dependabot.
+  #
+  # --require-hashes is intentionally omitted here because requirements.txt
+  # uses version range specifiers (>=) rather than pinned hashes.  When the
+  # project moves to a lock file (pip-compile or uv lock), --require-hashes
+  # should be enabled to prevent substitution attacks.
+  # --------------------------------------------------------------------------
+  pip-audit:
+    name: Dependency audit (pip-audit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit dependencies
+        # --desc: include advisory description in output for triage context.
+        # --fix:  not passed — audit is read-only; remediation is a separate PR.
+        # The exit code is 0 when clean, 1 when vulnerabilities are found.
+        run: |
+          pip-audit \
+            --requirement requirements.txt \
+            --desc \
+            --output-format columns
+
+      # Save the full report as an artifact so it is browsable in the Actions
+      # summary even when the step fails and the log is truncated.
+      - name: Save audit report
+        if: always()
+        run: |
+          pip-audit \
+            --requirement requirements.txt \
+            --desc \
+            --output-format json \
+            > pip-audit-report.json || true
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-report
+          path: pip-audit-report.json
+          retention-days: 30
+
+
+  # --------------------------------------------------------------------------
+  # Job: trufflehog
+  # Scans every commit reachable from the current HEAD for secrets.
+  # The scan uses TruffleHog's verified-only mode so it only fires on
+  # credentials that actually authenticate against their target service —
+  # not just strings that look like keys.
+  #
+  # The --since-commit / --branch combination scans the full pushed range on
+  # PRs and all of history on workflow_dispatch, matching TruffleHog's
+  # recommended usage for CI.
+  # --------------------------------------------------------------------------
+  trufflehog:
+    name: Secret scan (TruffleHog)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source (full history)
+        uses: actions/checkout@v4
+        with:
+          # A shallow clone would miss secrets committed in earlier history.
+          # Full fetch is required for TruffleHog to traverse all commits.
+          fetch-depth: 0
+
+      - name: Scan for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          # Scan from the beginning of history to HEAD on the current branch.
+          # On push events this covers the newly pushed range.
+          # On schedule/workflow_dispatch it covers the entire repository history.
+          path: ./
+          base: ""
+          head: HEAD
+          # verified: only report credentials confirmed live by calling the
+          # issuer's validation endpoint.  Reduces noise from test fixtures
+          # that contain placeholder strings shaped like real keys.
+          extra_args: --only-verified

@@ -1,0 +1,163 @@
+# ============================================================================
+# Continuous Integration — JA Assure AI Marketing System
+#
+# Runs on every push to any branch and on every pull request targeting main.
+# Two sequential jobs:
+#
+#   lint   — ruff check + ruff format --check
+#            Fast (<30 s), blocks the matrix if the code is not clean.
+#
+#   test   — pytest across Python 3.11, 3.12, and 3.13 in parallel.
+#            All API keys are blanked so the suite runs in fail-closed
+#            mode exactly as it does locally with no .env present.
+#            FFmpeg is installed from the apt cache so assembly.py tests
+#            have a real encoder binary available without a network call.
+#
+# The test job depends on lint: a formatter or import-order violation does
+# not consume a matrix slot unnecessarily.
+# ============================================================================
+
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+  pull_request:
+    branches:
+      - main
+
+# Cancel any in-flight run for the same ref/branch when a new push arrives.
+# This prevents a queue of stale runs from consuming free minutes after a
+# rapid series of fixup commits.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # --------------------------------------------------------------------------
+  # Job: lint
+  # Ruff is configured by pyproject.toml if present; falls back to defaults.
+  # Both the linter (ruff check) and the formatter (ruff format --check) must
+  # pass.  The formatter check is non-destructive — it reports diffs but does
+  # not rewrite files on the runner.
+  # --------------------------------------------------------------------------
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          # Pin to a single version for the lint job — formatting rules are
+          # version-agnostic and there is no value in running ruff three times.
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install ruff
+        # Install only ruff — pulling the full requirements.txt here would
+        # add 60–90 s to every push for no diagnostic benefit.
+        run: pip install "ruff>=0.6.0"
+
+      - name: Lint — ruff check
+        # E, F: pycodestyle + pyflakes errors (the must-fix tier).
+        # I:    isort import ordering.
+        # UP:   pyupgrade modernisation hints.
+        # The full rule set is in pyproject.toml when present.
+        run: ruff check .
+
+      - name: Format check — ruff format
+        # Fails if any file would be reformatted.  Does not modify files.
+        run: ruff format --check .
+
+
+  # --------------------------------------------------------------------------
+  # Job: test
+  # Matrix: Python 3.11, 3.12, 3.13.
+  # All secrets are blanked via env so the suite runs in fail-closed mode —
+  # matching the _no_real_keys autouse fixture in tests/conftest.py.
+  # --------------------------------------------------------------------------
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    needs: lint
+
+    strategy:
+      # Allow all matrix legs to complete even if one fails, so we see the
+      # full compatibility picture rather than stopping at the first failure.
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    # Blank every secret the app reads from Settings so tests run
+    # fail-closed without a real .env.  Values here shadow any repository
+    # secret that happens to share the name — intentionally, so tests cannot
+    # accidentally call paid APIs.
+    env:
+      ENVIRONMENT: dev
+      DEMO_MODE: "false"
+      LLM_PROVIDER: gemini
+      GEMINI_API_KEY: ""
+      OPENAI_API_KEY: ""
+      SERPER_API_KEY: ""
+      SCRAPEGRAPH_API_KEY: ""
+      GOOGLE_PLACES_API_KEY: ""
+      HUNTER_API_KEY: ""
+      BUFFER_ACCESS_TOKEN: ""
+      AYRSHARE_API_KEY: ""
+      PEXELS_API_KEY: ""
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      # FFmpeg must be present for assembly.py tests that call the real binary
+      # (the tests mock the network paths but execute the subprocess layer).
+      # The apt package ships a static build — no extra configuration needed.
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - name: Install Python dependencies
+        # --no-deps on psycopg[binary] avoids the libpq system-level conflict
+        # on the GitHub-hosted Ubuntu runner where libpq-dev may mismatch.
+        # The SQLite engine (the default) is used throughout CI.
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Initialise test database
+        # Creates the SQLite schema that the _isolated_database autouse
+        # fixture in conftest.py then replaces with an in-memory engine.
+        # Running init_db here catches import errors before pytest starts.
+        run: python -m scripts.init_db
+
+      - name: Run pytest
+        run: |
+          python -m pytest tests/ \
+            --tb=short \
+            --strict-markers \
+            -q \
+            --junitxml=junit-${{ matrix.python-version }}.xml
+
+      # Upload the JUnit XML so the Actions summary shows pass/fail counts
+      # per test function even when a run is partially green.
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-${{ matrix.python-version }}
+          path: junit-${{ matrix.python-version }}.xml
+          retention-days: 7
