@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Queue — JA Assure Review{% endblock %}
+{% block content %}
+<h2>Pending Queue ({{ items|length }})</h2>
+<table>
+    <thead>
+        <tr><th>Brand</th><th>Platform</th><th>Language</th><th>Draft</th><th>Retries</th><th>Actions</th></tr>
+    </thead>
+    <tbody id="queue-body">
+        {% for item in items %}
+            {% include "_queue_row.html" %}
+        {% else %}
+        <tr><td colspan="6"><em>Nothing pending review.</em></td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

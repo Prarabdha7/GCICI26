@@ -1,0 +1,11 @@
+<tr id="row-{{ item.id }}">
+    <td>{{ item.brand }}</td>
+    <td>{{ item.platform }}</td>
+    <td>{{ item.language }}</td>
+    <td><a href="/dashboard/queue/{{ item.id }}">{{ item.draft_content[:80] }}{% if item.draft_content|length > 80 %}…{% endif %}</a></td>
+    <td>{{ item.retry_count }}</td>
+    <td>
+        <button hx-post="/dashboard/queue/{{ item.id }}/approve" hx-target="closest tr" hx-swap="outerHTML swap:0.3s">Approve</button>
+        <a href="/dashboard/queue/{{ item.id }}" role="button" class="secondary">Review</a>
+    </td>
+</tr>

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{{ item.brand }} — Review{% endblock %}
+{% block content %}
+<p><a href="/dashboard">&larr; Back to queue</a></p>
+<h2>{{ item.brand }} — {{ item.platform }} ({{ item.language }})</h2>
+<p>
+    <span class="badge badge-{{ item.status }}">{{ item.status }}</span>
+    &middot; retries: {{ item.retry_count }}
+</p>
+
+<article>
+    <h3>Draft</h3>
+    <p style="white-space: pre-wrap;">{{ item.draft_content }}</p>
+</article>
+
+{% if item.final_content %}
+<article>
+    <h3>Final (edited) content</h3>
+    <p style="white-space: pre-wrap;">{{ item.final_content }}</p>
+</article>
+{% endif %}
+
+{% if item.compliance_errors %}
+<article>
+    <h3>Compliance violations</h3>
+    <ul>{% for violation in item.compliance_errors %}<li>{{ violation }}</li>{% endfor %}</ul>
+</article>
+{% endif %}
+
+{% if item.media_path %}
+<article>
+    <h3>Media</h3>
+    <p><code>{{ item.media_path }}</code></p>
+</article>
+{% endif %}
+
+<div id="detail-actions">
+    <form hx-post="/dashboard/queue/{{ item.id }}/approve" hx-target="#detail-actions" hx-swap="none">
+        <button type="submit">Approve</button>
+    </form>
+
+    <details>
+        <summary>Reject</summary>
+        <form hx-post="/dashboard/queue/{{ item.id }}/reject" hx-target="#detail-actions" hx-swap="none">
+            <label>Reason
+                <select name="error_tag" required>
+                    {% for tag in error_tags %}<option value="{{ tag }}">{{ tag }}</option>{% endfor %}
+                </select>
+            </label>
+            <label>Note<textarea name="human_note" required placeholder="What was wrong, specifically?"></textarea></label>
+            <button type="submit" class="secondary">Reject</button>
+        </form>
+    </details>
+
+    <details>
+        <summary>Edit &amp; approve</summary>
+        <form hx-post="/dashboard/queue/{{ item.id }}/edit" hx-target="#detail-actions" hx-swap="none">
+            <label>Final content
+                <textarea name="final_content" required rows="6">{{ item.final_content or item.draft_content }}</textarea>
+            </label>
+            <label>What did you change / why?
+                <select name="error_tag" required>
+                    {% for tag in error_tags %}<option value="{{ tag }}">{{ tag }}</option>{% endfor %}
+                </select>
+            </label>
+            <label>Note<textarea name="human_note" required placeholder="So the content agent doesn't repeat it"></textarea></label>
+            <button type="submit" class="contrast">Save &amp; approve</button>
+        </form>
+    </details>
+</div>
+{% endblock %}
