@@ -31,7 +31,8 @@ and [`docs/demo_runbook.md`](docs/demo_runbook.md).
   (`retry_count > 3` routes to manual review) — not a one-shot prompt chain.
 - **Closed-loop memory.** Every human rejection/edit becomes a
   `feedback_memory` row; the content agent's system prompt is grounded in the
-  last 5 relevant notes before it ever writes a new draft.
+  last 5 relevant notes before it ever writes a new draft. Optionally, MemGPT
+  guidance can be appended when `MEMGPT_BASE_URL` and `MEMGPT_AGENT_ID` are set.
 - **Compliance is data, not code.** The compliance gate is grounded in
   `compliance_rubric.md` (now covering MAS/BNM/HKIA/OIC/OJK jurisdictional
   schedules), read from disk on every call — the rubric changes without
@@ -46,6 +47,8 @@ and [`docs/demo_runbook.md`](docs/demo_runbook.md).
   all tagged `[DEMO]` / `mock-` / `is_demo` and excluded from real metrics.
 - **Zero-cost media pipeline.** Voiceover via `edge-tts`, assembly via
   `moviepy` — no paid video API.
+- **Optional execution notebook.** When enabled, every run is exported to an
+  Obsidian vault (`JA-Assure-Runs/`) and can include an Excalidraw flow file.
 
 ## Tech stack
 
@@ -62,6 +65,7 @@ and [`docs/demo_runbook.md`](docs/demo_runbook.md).
 | Discovery / enrichment | Google Places, Hunter.io — swappable, keyed |
 | Scheduler | APScheduler (embedded in API, or standalone `python -m worker.scheduler`) |
 | Publishing | Buffer or Ayrshare — swappable, with a labeled mock dispatcher for demos |
+| Optional knowledge tools | Obsidian + Excalidraw export, MemGPT guidance augmentation |
 
 ## Quickstart
 

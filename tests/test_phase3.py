@@ -151,6 +151,23 @@ def test_memory_retrieval_node_returns_empty_guidance_with_no_history(monkeypatc
     assert result == {"feedback_guidance": ""}
 
 
+def test_memory_retrieval_node_applies_memgpt_augmentation(monkeypatch) -> None:
+    canned = [FeedbackMemory(brand="Jade", platform="linkedin", error_tag="too_salesy", human_note="Too pushy.")]
+    monkeypatch.setattr(nodes_module, "get_recent_feedback", lambda db, **kw: canned)
+    monkeypatch.setattr(
+        nodes_module,
+        "augment_guidance_with_memgpt",
+        lambda **kw: f"{kw['local_guidance']}\n\nADDITIONAL GUIDANCE (MemGPT): keep tone educational",
+    )
+
+    result = nodes_module.memory_retrieval_node(
+        {"brand": "Jade", "platform": "linkedin", "language": "en", "draft_content": "",
+         "compliance_errors": [], "retry_count": 0, "feedback_guidance": ""}
+    )
+
+    assert "ADDITIONAL GUIDANCE (MemGPT)" in result["feedback_guidance"]
+
+
 # --------------------------------------------------------------------------- #
 # content_node — receiving and appending guidance to the system prompt
 # --------------------------------------------------------------------------- #
