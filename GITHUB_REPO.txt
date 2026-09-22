@@ -1,0 +1,10 @@
+Repository: https://github.com/prarabdha7/GCICI26
+
+Clone:
+    git clone https://github.com/prarabdha7/GCICI26.git
+
+Issues:
+    https://github.com/prarabdha7/GCICI26/issues
+
+Pull Requests:
+    https://github.com/prarabdha7/GCICI26/pulls
