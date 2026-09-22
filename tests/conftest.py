@@ -44,6 +44,7 @@ _SECRET_ATTRS = (
     "hunter_api_key",
     "buffer_access_token",
     "ayrshare_api_key",
+    "pexels_api_key",
 )
 
 
@@ -84,3 +85,19 @@ def _no_live_pollinations(monkeypatch):
         raise client_module.LLMError("Pollinations mocked closed for tests")
 
     monkeypatch.setattr(client_module, "_pollinations_image", _closed)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_pexels(monkeypatch):
+    """assemble_video()'s moviepy fallback fetches real Pexels stock footage
+    when PEXELS_API_KEY is set; auto-mock it closed so no test makes a real
+    network call unless it explicitly re-patches this itself (the blanked
+    key in _no_real_keys already gates this too — this is the same
+    belt-and-suspenders pattern as _no_live_pollinations, for a service that
+    happens to also be reachable without a key check ever running)."""
+    import app.media.stock_video as stock_video_module
+
+    def _closed(*args, **kwargs):
+        raise stock_video_module.ProviderError("Pexels mocked closed for tests")
+
+    monkeypatch.setattr(stock_video_module, "fetch_stock_video", _closed)

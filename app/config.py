@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     google_places_api_key: str = ""
     hunter_api_key: str = ""
 
+    # --- stock footage fallback for video assembly ---
+    # Optional: free tier at pexels.com/api. Without it, assemble_video()'s
+    # moviepy fallback path just uses a brand-tinted ColorClip, same as before.
+    pexels_api_key: str = ""
+
     # --- publishing (Phase 7) ---
     buffer_access_token: str = ""
     ayrshare_api_key: str = ""

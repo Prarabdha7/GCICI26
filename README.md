@@ -45,11 +45,15 @@ and [`docs/demo_runbook.md`](docs/demo_runbook.md).
   honestly instead of fabricating. With `DEMO_MODE=true`, domain-knowledge
   fallback copy, mock providers/publisher, stub reels and seed rows engage —
   all tagged `[DEMO]` / `mock-` / `is_demo` and excluded from real metrics.
-- **Veo-first video, zero-cost fallback.** `assemble_video()` tries Veo
-  (real generative video via the Gemini API) first; any failure — no key, no
-  quota, timeout — falls back to `edge-tts` + `moviepy` assembly, the
-  brief's own sanctioned zero-cost alternative. Both paths produce genuine,
-  non-fabricated media; Veo is just higher-fidelity when it's available.
+- **Three-tier video: Veo → real stock footage → ColorClip.** `assemble_video()`
+  tries Veo (real generative video via the Gemini API) first; any failure —
+  no key, no quota, timeout — falls back to `edge-tts` + `moviepy` assembly
+  with a real Pexels stock clip keyed off the script as the background
+  (`app/media/stock_video.py`); if that's also unavailable (no
+  `PEXELS_API_KEY`, no results), a brand-tinted `ColorClip` is the final
+  safety net, the brief's own sanctioned zero-cost alternative. All three
+  tiers produce genuine, non-fabricated media — each is just higher-fidelity
+  than the next when it's actually available.
 - **Live image generation, with a keyless fallback.** Instagram posts get a
   real, on-brand hero image; carousels get one image per slide, generated
   after the multi-format pack exists. Tries Gemini's native image-output
@@ -74,7 +78,7 @@ and [`docs/demo_runbook.md`](docs/demo_runbook.md).
 | Database | SQLAlchemy + SQLite (dev) → PostgreSQL (prod), one env var |
 | Review UI | FastAPI + Jinja2 + HTMX + PicoCSS, no build step — plus a static SPA at `/app` on the JSON actions API |
 | Voiceover | `edge-tts` — free, multilingual |
-| Video | Veo (`google-genai`, same key as the LLM) first, `moviepy` (pinned `<2.0`) + `ffmpeg` fallback |
+| Video | Veo first, real Pexels stock footage second, `moviepy` (pinned `<2.0`) + `ffmpeg` ColorClip third |
 | Image generation | Gemini native image-output models (`google-genai`, same key as the LLM) |
 | Research | DuckDuckGo + Crawl4AI (keyless, live) |
 | Discovery / enrichment | Google Places, Hunter.io — swappable, keyed |
@@ -156,7 +160,7 @@ keys blanked and live research auto-mocked — they never touch your local
 | Heuristic gate + self-heal + demo-gated domain fallback | `app/llm/fallback.py` |
 | Brand voices, colors, jurisdictions | `app/agents/brand_knowledge.py` |
 | Multi-format pack (thread/carousel/A-B/video script) | `app/agents/formats.py` |
-| Video generation (Veo-first, zero-cost moviepy fallback) | `app/media/assembly.py`, `app/llm/client.py` |
+| Video generation (Veo → Pexels stock footage → moviepy ColorClip) | `app/media/assembly.py`, `app/llm/client.py`, `app/media/stock_video.py` |
 | Live image generation (hero shots + per-slide carousel images) | `app/media/image_gen.py`, `app/graph/nodes.py` |
 | Discovery / enrichment (swappable providers) | `app/agents/providers.py`, `app/agents/leads.py` |
 | Human review dashboard + JSON actions API + static console | `app/api/`, `app/templates/`, `frontend/` |

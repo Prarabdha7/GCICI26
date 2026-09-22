@@ -225,10 +225,12 @@ def assemble_video(
     Veo is just the higher-fidelity option when it's actually available.
 
     The fallback: voiceover over a background clip, trimmed to audio length.
-    `background_path` is a real clip for production use; without one, a
-    brand-tinted `ColorClip` stands in so the pipeline runs with no committed
-    footage (assets/video/ currently holds only a .gitkeep). Also renders a
-    Pillow caption card (kinetic still) alongside the MP4 for dashboard preview.
+    `background_path` is a real clip for production use; if the caller didn't
+    supply one, real Pexels stock footage keyed off the script is fetched
+    next (app.media.stock_video); only if that's also unavailable (no
+    PEXELS_API_KEY, no results, network failure) does a brand-tinted
+    `ColorClip` stand in as the final safety net. Also renders a Pillow
+    caption card (kinetic still) alongside the MP4 for dashboard preview.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     run_id = uuid.uuid4().hex
@@ -243,6 +245,17 @@ def assemble_video(
         return video_path
     except Exception as exc:
         log.warning("assemble_video: Veo unavailable (%s) — falling back to edge-tts + moviepy", exc)
+
+    if background_path is None:
+        try:
+            from app.agents.brand_knowledge import get_brand
+            from app.media.stock_video import extract_keyword, fetch_stock_video
+
+            keyword = extract_keyword(script, fallback=get_brand(brand)["niche"])
+            background_path = fetch_stock_video(keyword, output_dir=output_dir)
+            log.info("assemble_video: using Pexels stock footage for keyword=%r", keyword)
+        except Exception as exc:
+            log.info("assemble_video: Pexels stock footage unavailable (%s) — using brand-tinted ColorClip", exc)
 
     audio_path = output_dir / f"voiceover_{run_id}.mp3"
 
