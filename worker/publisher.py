@@ -132,14 +132,6 @@ class MockPublisher(BasePublisher):
         return f"mock-{item.platform}-{digest}"
 
 
-def get_publisher_resilient() -> BasePublisher:
-    """Strict keys first, mock fallback for zero-key demos."""
-    try:
-        return get_publisher()
-    except PublisherError:
-        return MockPublisher()
-
-
 def publish_with_retry(publisher: BasePublisher, item: ContentQueue, *, attempts: int = 3) -> str:
     """Exponential-backoff retry for transient HTTP failures. Raises PublisherError after budget."""
     import time
