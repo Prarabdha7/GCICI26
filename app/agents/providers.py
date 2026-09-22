@@ -37,7 +37,7 @@ class TavilySearch(BaseSearchProvider):
     API_URL = "https://api.tavily.com/search"
 
     def __init__(self, api_key: str | None = None) -> None:
-        self.api_key = api_key or settings.tavily_api_key
+        self.api_key = api_key if api_key is not None else settings.tavily_api_key
 
     def search(self, query: str, *, max_results: int = 5) -> list[dict[str, Any]]:
         if not self.api_key:
@@ -61,7 +61,7 @@ class SerperSearch(BaseSearchProvider):
     API_URL = "https://google.serper.dev/search"
 
     def __init__(self, api_key: str | None = None) -> None:
-        self.api_key = api_key or settings.serper_api_key
+        self.api_key = api_key if api_key is not None else settings.serper_api_key
 
     def search(self, query: str, *, max_results: int = 5) -> list[dict[str, Any]]:
         if not self.api_key:
@@ -97,7 +97,7 @@ class GooglePlacesDiscovery(BaseDiscoveryProvider):
     API_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
 
     def __init__(self, api_key: str | None = None) -> None:
-        self.api_key = api_key or settings.google_places_api_key
+        self.api_key = api_key if api_key is not None else settings.google_places_api_key
 
     def discover(self, *, niche: str, country: str, max_results: int = 10) -> list[dict[str, Any]]:
         if not self.api_key:
@@ -121,7 +121,7 @@ class ScrapeGraphClient:
     API_URL = "https://api.scrapegraphai.com/v1/markdownify"
 
     def __init__(self, api_key: str | None = None) -> None:
-        self.api_key = api_key or settings.scrapegraph_api_key
+        self.api_key = api_key if api_key is not None else settings.scrapegraph_api_key
 
     def extract_markdown(self, url: str) -> str:
         if not self.api_key:
@@ -154,7 +154,7 @@ def get_discovery_provider() -> BaseDiscoveryProvider:
 
 def get_hunter_contacts(domain: str, *, api_key: str | None = None) -> list[dict[str, Any]]:
     """Professional email contacts for a domain via Hunter.io Domain Search."""
-    key = api_key or settings.hunter_api_key
+    key = api_key if api_key is not None else settings.hunter_api_key
     if not key:
         raise ProviderError("HUNTER_API_KEY is not set.")
     response = httpx.get(
