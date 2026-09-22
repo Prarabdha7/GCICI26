@@ -96,9 +96,55 @@ def structured_call(
     return parsed
 
 
+def image_call(
+    *,
+    prompt: str,
+    provider: str | None = None,
+    model: str | None = None,
+) -> bytes:
+    """Generates a single image from a text prompt. Returns raw image bytes (PNG)."""
+    name = _resolve(provider)
+    if name == "gemini":
+        return _gemini_image(prompt=prompt, model=model)
+    raise LLMError(f"Image generation not supported for LLM_PROVIDER: {name!r}")
+
+
 # --------------------------------------------------------------------------- #
 # Providers
 # --------------------------------------------------------------------------- #
+
+
+def _gemini_image(*, prompt: str, model: str | None = None) -> bytes:
+    if not settings.gemini_api_key:
+        raise LLMError("GEMINI_API_KEY is not set. Copy .env.example to .env and fill it in.")
+    try:
+        from google import genai
+    except ImportError as exc:  # pragma: no cover
+        raise LLMError("google-genai is not installed. pip install -r requirements.txt") from exc
+
+    client = genai.Client(api_key=settings.gemini_api_key)
+    target_models = [model] if model else [
+        settings.gemini_image_model,
+        "gemini-3.1-flash-image",
+        "gemini-3.1-flash-lite-image",
+        "gemini-2.5-flash-image",
+        "gemini-3-pro-image",
+    ]
+    last_exc = None
+    for m in [m for m in target_models if m]:
+        try:
+            response = client.models.generate_content(model=m, contents=prompt)
+            candidates = getattr(response, "candidates", None) or []
+            for candidate in candidates:
+                for part in getattr(candidate.content, "parts", None) or []:
+                    inline = getattr(part, "inline_data", None)
+                    if inline and inline.data:
+                        return inline.data
+        except Exception as exc:
+            last_exc = exc
+            continue
+
+    raise LLMError(f"Gemini image call failed: {last_exc}")
 
 
 def _gemini(*, system: str, user: str, temperature: float, schema: dict[str, Any] | None) -> str:

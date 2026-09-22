@@ -261,8 +261,226 @@ async function renderMemory() {
   }));
 }
 
+/* ---------------- studio (Test Lab) ---------------- */
+const PRESET_SCRIPTS = {
+  "Jade": "Discretion is paramount. Jade protects high-value gems, luxury watches, and bespoke jewellery from vault to exhibition. MAS compliant.",
+  "DoctorShield": "Clinical decisions belong to physicians. Financial protection against malpractice suits belongs to DoctorShield. Terms apply.",
+  "Jaguar Transit": "High-value freight moving across Southeast Asian borders. Unbroken chain-of-custody protection on road, air, and sea. Terms apply."
+};
+
+const PRESET_PROMPTS = {
+  "Jade": "Emerald and diamond brooch resting on black velvet inside a bank vault, dramatic lighting, 4K macro sweep, photorealistic luxury jewellery",
+  "DoctorShield": "Dramatic clinical lighting in a modern diagnostic surgical theater, sterile, blue ambient glow, ultra-detailed 4K medical technology",
+  "Jaguar Transit": "Armored security logistics convoy transport vehicle on wet asphalt at night under neon streetlights, rain reflections, 4K"
+};
+
+async function renderStudio() {
+  let modelInfo = { image_model: "gemini-3.1-flash-image", video_model: "veo-3.1-fast-generate-preview", available_image_models: [], available_video_strategies: [] };
+  try { modelInfo = await api("/api/studio/models"); } catch (e) { /* fallback */ }
+
+  view.innerHTML = `
+    <div class="studio-header" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div>
+        <h2>Interactive Test Studio <span class="badge" style="background:#38bdf8;color:#090d16;font-weight:700">Test Lab</span></h2>
+        <p class="mut">Real-time testing bench for Sora-like Video Reels, Gemini Image Generation, and Obsidian Second Brain.</p>
+      </div>
+      <div style="background:#1e293b;padding:8px 14px;border-radius:6px;border:1px solid #334155;font-size:.85rem;display:flex;gap:12px">
+        <span>Image: <code style="color:#38bdf8">${esc(modelInfo.image_model)}</code></span>
+        <span>Video: <code style="color:#a78bfa">${esc(modelInfo.video_model)}</code></span>
+      </div>
+    </div>
+
+    <div class="grid two">
+      <!-- Reel Studio Card -->
+      <div class="card">
+        <h3>🎬 Sora-Like Cinematic Video Reel</h3>
+        <p class="mut">Assembles Edge-TTS voiceover, 9:16 vertical video (Veo / Pollinations / Curated B-Roll / Ken Burns), and kinetic highlighted subtitles.</p>
+        <div class="formgrid">
+          <label>Brand
+            <select id="s-vbrand">
+              <option value="Jade">Jade (Jewellers Block)</option>
+              <option value="DoctorShield">DoctorShield (Medical Indemnity)</option>
+              <option value="Jaguar Transit">Jaguar Transit (High-Value Cargo)</option>
+            </select>
+          </label>
+          <label>Strategy
+            <select id="s-vstrat">
+              <option value="auto">Auto Cascade (Veo → Pollinations → B-roll → Ken Burns)</option>
+              <option value="broll">Curated 4K B-Roll Loop (assets/video/)</option>
+              <option value="veo">Google Veo (veo-3.1-fast-generate-preview)</option>
+              <option value="community">Community Diffusion (Pollinations.ai)</option>
+              <option value="kenburns">2.5D Ken Burns Cinematic Motion</option>
+            </select>
+          </label>
+          <label>Voice Accent
+            <select id="s-vlang">
+              <option value="en">English (Singapore - Wayne)</option>
+              <option value="ms">Malay (Malaysia - Osman)</option>
+              <option value="id">Indonesian (Ardi)</option>
+              <option value="th">Thai (Niwat)</option>
+              <option value="zh">Cantonese (Hong Kong - WanLung)</option>
+            </select>
+          </label>
+        </div>
+        <label>Narration Script
+          <textarea id="s-vscript" rows="3">${esc(PRESET_SCRIPTS["Jade"])}</textarea>
+        </label>
+        <div style="display:flex;gap:6px;margin:6px 0 10px">
+          <button type="button" class="secondary" id="s-vpre-jade" style="padding:3px 8px;font-size:.78rem">Preset: Jade</button>
+          <button type="button" class="secondary" id="s-vpre-doc" style="padding:3px 8px;font-size:.78rem">Preset: DoctorShield</button>
+          <button type="button" class="secondary" id="s-vpre-jag" style="padding:3px 8px;font-size:.78rem">Preset: Jaguar Transit</button>
+        </div>
+        <p><button id="s-vbtn" style="background:#0284c7;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:600;cursor:pointer">Generate Video Reel</button></p>
+        <div id="s-vresult" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #334155">
+          <h4>Video Preview</h4>
+          <video id="s-vplayer" controls preload="metadata" style="width:100%;max-width:300px;border-radius:8px;background:#000;margin-bottom:8px;display:block"></video>
+          <div id="s-vdownloads" class="mut" style="margin-bottom:8px"></div>
+          <div id="s-vcaptions" style="max-height:120px;overflow-y:auto"></div>
+        </div>
+      </div>
+
+      <!-- Image Studio Card -->
+      <div class="card">
+        <h3>🎨 High-Definition Image Studio</h3>
+        <p class="mut">Tests Gemini Image Generation (gemini-3.1-flash-image with fallbacks) or procedural luxury cards.</p>
+        <div class="formgrid">
+          <label>Brand
+            <select id="s-ibrand">
+              <option value="Jade">Jade</option>
+              <option value="DoctorShield">DoctorShield</option>
+              <option value="Jaguar Transit">Jaguar Transit</option>
+            </select>
+          </label>
+          <label>Image Model
+            <select id="s-imodel">
+              <option value="gemini-3.1-flash-image">gemini-3.1-flash-image (Default)</option>
+              <option value="gemini-3.1-flash-lite-image">gemini-3.1-flash-lite-image</option>
+              <option value="gemini-2.5-flash-image">gemini-2.5-flash-image</option>
+              <option value="gemini-3-pro-image">gemini-3-pro-image</option>
+              <option value="procedural">procedural-luxury (Zero-Key)</option>
+            </select>
+          </label>
+        </div>
+        <label>Visual Prompt
+          <textarea id="s-iprompt" rows="3">${esc(PRESET_PROMPTS["Jade"])}</textarea>
+        </label>
+        <div style="display:flex;gap:6px;margin:6px 0 10px">
+          <button type="button" class="secondary" id="s-ipre-jade" style="padding:3px 8px;font-size:.78rem">Prompt: Vault</button>
+          <button type="button" class="secondary" id="s-ipre-doc" style="padding:3px 8px;font-size:.78rem">Prompt: Clinic</button>
+          <button type="button" class="secondary" id="s-ipre-jag" style="padding:3px 8px;font-size:.78rem">Prompt: Convoy</button>
+        </div>
+        <p><button id="s-ibtn" style="background:#059669;color:#fff;border:none;padding:8px 18px;border-radius:6px;font-weight:600;cursor:pointer">Generate Visual</button></p>
+        <div id="s-iresult" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #334155">
+          <h4>Generated Image</h4>
+          <img id="s-iimg" src="" alt="Generated Preview" style="width:100%;max-width:300px;border-radius:8px;background:#0b1220;border:1px solid #334155;margin-bottom:8px;display:block">
+          <div><a id="s-idownload" href="" download="image.png" class="btn" style="display:inline-block;padding:4px 10px;background:#1e293b;border:1px solid #38bdf8;border-radius:4px;color:#38bdf8;text-decoration:none">📥 Download PNG</a></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3>🧠 Obsidian Second Brain & Flow Tester</h3>
+      <p class="mut">Rebuilds and exports the entire memory graph, competitors, regulations, and native <code>.canvas</code> flow view.</p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button id="s-mrebuild" class="secondary">🔄 Sync & Rebuild Vault</button>
+        <a href="/vault/JA_Assure_Second_Brain.canvas" download="JA_Assure_Second_Brain.canvas" class="btn" style="display:inline-block;padding:6px 12px;background:#1e293b;border:1px solid #38bdf8;border-radius:4px;color:#38bdf8;text-decoration:none">📥 Download Obsidian Canvas (.canvas)</a>
+        <button id="s-mview" class="secondary" style="color:#a78bfa;border-color:#a78bfa">Open Memory Graph View →</button>
+      </div>
+      <div id="s-mstatus" class="mut" style="margin-top:8px"></div>
+    </div>
+  `;
+
+  // Bind video presets
+  $("#s-vpre-jade").onclick = () => { $("#s-vbrand").value = "Jade"; $("#s-vscript").value = PRESET_SCRIPTS["Jade"]; };
+  $("#s-vpre-doc").onclick = () => { $("#s-vbrand").value = "DoctorShield"; $("#s-vscript").value = PRESET_SCRIPTS["DoctorShield"]; };
+  $("#s-vpre-jag").onclick = () => { $("#s-vbrand").value = "Jaguar Transit"; $("#s-vscript").value = PRESET_SCRIPTS["Jaguar Transit"]; };
+
+  // Bind image presets
+  $("#s-ipre-jade").onclick = () => { $("#s-ibrand").value = "Jade"; $("#s-iprompt").value = PRESET_PROMPTS["Jade"]; };
+  $("#s-ipre-doc").onclick = () => { $("#s-ibrand").value = "DoctorShield"; $("#s-iprompt").value = PRESET_PROMPTS["DoctorShield"]; };
+  $("#s-ipre-jag").onclick = () => { $("#s-ibrand").value = "Jaguar Transit"; $("#s-iprompt").value = PRESET_PROMPTS["Jaguar Transit"]; };
+
+  // Video generation handler
+  $("#s-vbtn").onclick = async () => {
+    const btn = $("#s-vbtn");
+    btn.disabled = true;
+    btn.textContent = "Rendering Reel…";
+    showBanner("Assembling reel with Edge-TTS and video engine…");
+    try {
+      const data = await api("/api/studio/reel", {
+        method: "POST",
+        body: JSON.stringify({
+          brand: $("#s-vbrand").value,
+          script: $("#s-vscript").value,
+          language: $("#s-vlang").value,
+          strategy: $("#s-vstrat").value,
+        }),
+      });
+      showBanner("Reel generated successfully!", "demo");
+      const resBox = $("#s-vresult");
+      resBox.style.display = "block";
+      const player = $("#s-vplayer");
+      player.src = data.video_url;
+      player.load();
+      $("#s-vdownloads").innerHTML = `<a href="${esc(data.video_url)}" download>Download MP4</a> · <a href="${esc(data.srt_url)}" download>Download SRT</a> · Strategy: <b>${esc(data.strategy)}</b>`;
+      if (data.captions && data.captions.length) {
+        $("#s-vcaptions").innerHTML = `<ol class="compact">${data.captions.map(c => `<li>${esc(c.text)} <span class="mut">(${c.start.toFixed(1)}s - ${c.end.toFixed(1)}s)</span></li>`).join("")}</ol>`;
+      }
+    } catch (e) {
+      showBanner("Video generation failed: " + e.message, "err");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Generate Video Reel";
+    }
+  };
+
+  // Image generation handler
+  $("#s-ibtn").onclick = async () => {
+    const btn = $("#s-ibtn");
+    btn.disabled = true;
+    btn.textContent = "Generating Visual…";
+    showBanner("Calling image engine…");
+    try {
+      const data = await api("/api/studio/image", {
+        method: "POST",
+        body: JSON.stringify({
+          prompt: $("#s-iprompt").value,
+          brand: $("#s-ibrand").value,
+          model: $("#s-imodel").value,
+        }),
+      });
+      showBanner("Image generated successfully!", "demo");
+      $("#s-iresult").style.display = "block";
+      $("#s-iimg").src = data.image_url + "?t=" + Date.now();
+      $("#s-idownload").href = data.image_url;
+    } catch (e) {
+      showBanner("Image generation failed: " + e.message, "err");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Generate Visual";
+    }
+  };
+
+  // Obsidian actions
+  $("#s-mrebuild").onclick = async () => {
+    try {
+      showBanner("Rebuilding Obsidian vault…");
+      const g = await api("/api/memory/vault");
+      $("#s-mstatus").textContent = `Vault rebuilt: ${g.nodes.length} nodes, ${g.edges.length} links written to /vault/ and JA_Assure_Second_Brain.canvas`;
+      showBanner("Vault rebuilt successfully!");
+    } catch (e) {
+      showBanner("Vault rebuild failed: " + e.message, "err");
+    }
+  };
+  $("#s-mview").onclick = () => {
+    document.querySelectorAll("#nav button").forEach(x => x.classList.remove("active"));
+    $("[data-view=memory]").classList.add("active");
+    renderMemory();
+  };
+}
+
 /* ---------------- boot ---------------- */
-const routes = { queue: renderQueue, generate: renderGenerate, metrics: renderMetrics, leads: renderLeads, memory: renderMemory };
+const routes = { queue: renderQueue, generate: renderGenerate, studio: renderStudio, metrics: renderMetrics, leads: renderLeads, memory: renderMemory };
 $("#nav").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   document.querySelectorAll("#nav button").forEach(x => x.classList.remove("active"));

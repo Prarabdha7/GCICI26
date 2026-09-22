@@ -268,3 +268,102 @@ def memory_vault(db: Session = Depends(get_db)) -> dict:
     from app.memory.vault import export_vault
 
     return export_vault(db)
+
+
+class StudioReelRequest(BaseModel):
+    script: str
+    brand: str = "Jade"
+    language: str = "en"
+    strategy: str = "auto"  # auto, veo, community, broll, kenburns
+
+
+class StudioImageRequest(BaseModel):
+    prompt: str
+    brand: str = "Jade"
+    model: str | None = None
+
+
+@router.post("/studio/reel")
+def studio_generate_reel(req: StudioReelRequest) -> dict:
+    """Interactive video generation endpoint for testing reels."""
+    import uuid
+    from app.media.assembly import TEMP_DIR, assemble_video
+
+    run_id = uuid.uuid4().hex[:8]
+    bg_path = None
+    if req.strategy == "broll":
+        from app.media.video_providers import get_curated_broll
+        bg_path = get_curated_broll(req.brand)
+    elif req.strategy == "community":
+        from app.media.video_providers import fetch_community_video, get_cinematic_prompt
+        p = get_cinematic_prompt(req.brand, req.script)
+        bg_path = fetch_community_video(p, output_path=TEMP_DIR / f"comm_{run_id}.mp4")
+    elif req.strategy == "veo":
+        from app.media.video_providers import generate_veo_clip, get_cinematic_prompt
+        p = get_cinematic_prompt(req.brand, req.script)
+        bg_path = generate_veo_clip(p, output_path=TEMP_DIR / f"veo_{run_id}.mp4", brand=req.brand)
+
+    video_path = assemble_video(
+        script=req.script,
+        language=req.language,
+        brand=req.brand,
+        background_path=bg_path,
+    )
+    base_stem = video_path.stem.replace("reel_", "")
+    captions = []
+    json_path = video_path.parent / f"reel_{base_stem}.json"
+    if json_path.exists():
+        try:
+            import json as _json
+            captions = _json.loads(json_path.read_text(encoding="utf-8")).get("captions", [])
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "video_url": f"/temp/{video_path.name}",
+        "srt_url": f"/temp/reel_{base_stem}.srt",
+        "captions": captions,
+        "strategy": req.strategy,
+        "brand": req.brand,
+    }
+
+
+@router.post("/studio/image")
+def studio_generate_image(req: StudioImageRequest) -> dict:
+    """Interactive image generation endpoint for testing visuals."""
+    from app.media.image_gen import generate_image
+
+    path = generate_image(prompt=req.prompt, brand=req.brand, model=req.model)
+    return {
+        "status": "success",
+        "image_url": f"/temp/{path.name}",
+        "prompt": req.prompt,
+        "brand": req.brand,
+        "model": req.model or settings.gemini_image_model,
+    }
+
+
+@router.get("/studio/models")
+def studio_models() -> dict:
+    """Returns validated models and configuration status."""
+    return {
+        "image_model": settings.gemini_image_model,
+        "video_model": settings.gemini_video_model,
+        "text_model": settings.gemini_model,
+        "has_gemini_key": bool(settings.gemini_api_key),
+        "available_image_models": [
+            "gemini-3.1-flash-image",
+            "gemini-3.1-flash-lite-image",
+            "gemini-2.5-flash-image",
+            "gemini-3-pro-image",
+            "procedural-luxury",
+        ],
+        "available_video_strategies": [
+            {"id": "auto", "name": "Auto Cascade (Veo → Pollinations → B-roll → Ken Burns)"},
+            {"id": "veo", "name": "Google Veo (veo-3.1-fast-generate-preview)"},
+            {"id": "community", "name": "Community Open Diffusion (Pollinations.ai)"},
+            {"id": "broll", "name": "Curated 4K B-Roll Loop (assets/video/)"},
+            {"id": "kenburns", "name": "2.5D Ken Burns Cinematic Camera Motion"},
+        ],
+    }

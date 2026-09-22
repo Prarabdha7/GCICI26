@@ -315,13 +315,16 @@ def assemble_kenburns_reel(
 
         ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
         final_path = output_dir / f"reel_{run_id}_final.mp4"
-        subprocess.run(
-            [ffmpeg, "-y", "-i", str(silent_path), "-i", str(audio_path),
-             "-c:v", "copy", "-c:a", "aac", "-shortest", str(final_path)],
-            check=True, capture_output=True,
-        )
-        silent_path.unlink(missing_ok=True)
-        return final_path
+        try:
+            subprocess.run(
+                [ffmpeg, "-y", "-i", str(silent_path), "-i", str(audio_path),
+                 "-c:v", "copy", "-c:a", "aac", "-shortest", str(final_path)],
+                check=True, capture_output=True,
+            )
+            silent_path.unlink(missing_ok=True)
+            return final_path
+        except Exception as exc:
+            log.warning("Audio muxing skipped (%s) — continuing with silent reel", exc)
     silent_path.rename(video_path)
     return video_path
 

@@ -41,3 +41,8 @@ video { width:100%; max-width:300px; border-radius:8px; background:#000; }
 .kpi span { color:var(--mut); font-size:.8rem; }
 .back { display:inline-block; margin-bottom:10px; color:var(--acc); cursor:pointer; }
 ol.compact, ul.compact { margin:6px 0; padding-left:20px; } ol.compact li, ul.compact li { margin-bottom:4px; }
+.studio-result { background:#0b1220; border:1px solid #334155; border-radius:8px; padding:12px; margin-top:12px; }
+.captions-box { background:#1e293b; border-radius:6px; padding:8px 12px; border:1px solid #334155; font-size:.82rem; }
+.captions-box ol { margin:0; padding-left:18px; }
+button:hover, .btn:hover { opacity:0.92; }
+#nav button:hover { border-color:var(--acc); }

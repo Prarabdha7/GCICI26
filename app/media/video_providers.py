@@ -78,21 +78,32 @@ def generate_veo_clip(
         from google import genai
 
         client = genai.Client(api_key=settings.gemini_api_key)
+        veo_models = [
+            settings.gemini_video_model,
+            "veo-3.1-fast-generate-preview",
+            "veo-3.1-generate-preview",
+            "veo-3.1-lite-generate-preview",
+            "veo-2.0-generate-001",
+        ]
         # Check if client has models with generate_videos or video support
         if hasattr(client.models, "generate_videos"):
-            operation = client.models.generate_videos(
-                model="veo-2.0-generate-001",
-                prompt=prompt,
-                config={"aspect_ratio": "9:16", "person_generation": "ALLOW_ADULT"},
-            )
-            # If polling is needed, best effort:
-            if hasattr(operation, "response") and operation.response:
-                video_bytes = getattr(operation.response, "video_bytes", None)
-                if video_bytes:
-                    output_path.parent.mkdir(parents=True, exist_ok=True)
-                    output_path.write_bytes(video_bytes)
-                    log.info("Veo generation succeeded: %s", output_path)
-                    return output_path
+            for m in veo_models:
+                try:
+                    operation = client.models.generate_videos(
+                        model=m,
+                        prompt=prompt,
+                        config={"aspect_ratio": "9:16", "person_generation": "ALLOW_ADULT"},
+                    )
+                    if hasattr(operation, "response") and operation.response:
+                        video_bytes = getattr(operation.response, "video_bytes", None)
+                        if video_bytes:
+                            output_path.parent.mkdir(parents=True, exist_ok=True)
+                            output_path.write_bytes(video_bytes)
+                            log.info("Veo generation succeeded with %s: %s", m, output_path)
+                            return output_path
+                except Exception as model_err:
+                    log.debug("Veo model %s unavailable: %s", m, model_err)
+                    continue
     except Exception as exc:
         log.info("Google Veo unavailable on current API key tier (%s) — falling back to Strategy 1/3/4", exc)
 
