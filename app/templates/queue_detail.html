@@ -110,7 +110,8 @@
     {% if pack.variant_a %}<p><strong>A:</strong> {{ pack.variant_a }}</p>{% endif %}
     {% if pack.variant_b %}<p><strong>B:</strong> {{ pack.variant_b }}</p>{% endif %}
     {% if pack.video_script %}<h4>Video script</h4><p>{{ pack.video_script }}</p>{% endif %}
-    {% if pack.focus_group %}<h4>Focus group</h4><ul>{% for n in pack.focus_group %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+    {% if pack.hashtags %}<h4>Hashtags ({{ pack.hashtags_source or "suggestion" }})</h4><p>{{ pack.hashtags|join(" ") }}</p>{% endif %}
+    {% if pack.focus_group %}<h4>Focus group (demo personas)</h4><ul>{% for n in pack.focus_group %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
 </article>
 {% endif %}
 

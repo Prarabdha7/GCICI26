@@ -138,6 +138,14 @@ def publish_events(content_id: int, db: Session = Depends(get_db)) -> list[dict]
     return [{"event": r.event, "provider": r.provider, "external_post_id": r.external_post_id, "payload": r.payload or {}, "at": r.created_at.isoformat() if r.created_at else None} for r in rows]
 
 
+@router.get("/intel/digests")
+def intel_digests(db: Session = Depends(get_db)) -> list[dict]:
+    """Latest persisted competitor-intel digest per brand/country (brief item 1)."""
+    from worker.intel import latest_digests
+
+    return latest_digests(db)
+
+
 def _lev(a: str, b: str) -> int:
     if a == b:
         return 0

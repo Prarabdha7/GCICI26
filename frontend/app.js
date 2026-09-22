@@ -98,6 +98,7 @@ async function renderDetail(id) {
         <h4>Carousel</h4><ol class="compact">${pack.carousel.map(s => `<li>${esc(s)}</li>`).join("")}</ol>
         <p><b>A:</b> ${esc(pack.variant_a)}</p><p><b>B:</b> ${esc(pack.variant_b)}</p>
         ${pack.video_script ? `<h4>Video script</h4><p>${esc(pack.video_script)}</p>` : ""}
+        ${(pack.hashtags || []).length ? `<h4>Hashtags (${esc(pack.hashtags_source || "suggestion")})</h4><p>${pack.hashtags.map(esc).join(" ")}</p>` : ""}
         ${(pack.focus_group || []).length ? `<h4>Focus group (demo personas)</h4><ul class="compact">${pack.focus_group.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}</div>` : ""}
       <div class="card"><h3>Review actions</h3>
         <p><button id="a-approve">Approve</button> <button id="a-fix" class="secondary">Accept self-healing fix</button></p>
@@ -124,10 +125,14 @@ async function renderDetail(id) {
 }
 
 /* ---------------- generate ---------------- */
-function renderGenerate() {
+async function renderGenerate() {
+  let digests = [];
+  try { digests = await api("/api/intel/digests"); } catch (e) { /* honest empty */ }
   view.innerHTML = `
     <h2>Generate</h2>
     <p class="mut">Runs the real LangGraph pipeline. Without an LLM key it fails honestly in real mode; in DEMO mode output is labeled DEMO.</p>
+    <div class="card"><h3>Latest intel digests (periodic sweep)</h3>
+      <ul class="compact">${digests.map(d => `<li><b>${esc(d.brand)} / ${esc(d.country)}</b>${d.is_demo ? " <span class='badge demo'>demo</span>" : ""}<br><span class="mut">${esc((d.digest_text || "no findings this sweep").slice(0, 220))}</span><br><button class="secondary" data-digest="${esc((d.digest_text || "").slice(0, 200))}" data-brand="${esc(d.brand)}">Generate from this</button></li>`).join("") || "<li class='mut'>No digests yet — the 6-hour sweep hasn't stored any, or research found nothing.</li>"}</ul></div>
     <div class="grid two">
     <div class="card"><h3>Campaign</h3><div class="formgrid">
       <label>Brand<select id="g-brand"><option>Jade</option><option>Jaguar Transit</option><option>DoctorShield</option></select></label>
@@ -154,6 +159,12 @@ function renderGenerate() {
       showBanner(d.message, d.is_demo ? "demo" : ""); renderDetail(d.content_id);
     } catch (e) { showBanner("Newsjack failed honestly: " + e.message, "err"); }
   };
+  view.querySelectorAll("[data-digest]").forEach(b => b.onclick = async () => {
+    try {
+      const d = await api("/api/generate", { method: "POST", body: JSON.stringify({ brand: b.dataset.brand, platform: "linkedin", language: "en", topic: b.dataset.digest, content_type: "post" }) });
+      showBanner(d.message, d.is_demo ? "demo" : ""); renderDetail(d.content_id);
+    } catch (e) { showBanner("Generation failed honestly: " + e.message, "err"); }
+  });
 }
 
 /* ---------------- metrics ---------------- */

@@ -137,7 +137,8 @@ def test_memory_retrieval_node_writes_feedback_guidance(monkeypatch) -> None:
          "compliance_errors": [], "retry_count": 0, "feedback_guidance": ""}
     )
 
-    assert result == {"feedback_guidance": format_guidance(canned)}
+    assert result["feedback_guidance"] == format_guidance(canned)
+    assert result["engagement_guidance"] == ""  # no real engagement measured yet
 
 
 def test_memory_retrieval_node_returns_empty_guidance_with_no_history(monkeypatch) -> None:
@@ -148,7 +149,8 @@ def test_memory_retrieval_node_returns_empty_guidance_with_no_history(monkeypatc
          "compliance_errors": [], "retry_count": 0, "feedback_guidance": ""}
     )
 
-    assert result == {"feedback_guidance": ""}
+    assert result["feedback_guidance"] == ""
+    assert result["engagement_guidance"] == ""
 
 
 # --------------------------------------------------------------------------- #
@@ -235,3 +237,49 @@ def test_graph_runs_memory_retrieval_before_content(monkeypatch) -> None:
     assert final_state["feedback_guidance"] == format_guidance(canned)
     # content_node ran with the guidance already populated by memory_retrieval_node
     assert format_guidance(canned) in captured["systems"][0]
+
+
+# --------------------------------------------------------------------------- #
+# engagement guidance — the analytics loop feeding generation (real data only)
+# --------------------------------------------------------------------------- #
+
+
+def test_format_engagement_guidance_empty_without_measurements() -> None:
+    from app.memory.retrieval import format_engagement_guidance
+
+    assert format_engagement_guidance([], brand="Jade", platform="linkedin") == ""
+
+
+def test_format_engagement_guidance_skips_demo_rows() -> None:
+    from app.db.models import PublishEvent
+    from app.memory.retrieval import format_engagement_guidance
+
+    demo = PublishEvent(content_id=1, event="engagement", provider="mock-demo",
+                        external_post_id="mock-x", payload={"impressions": 9999, "ctr": 0.9, "demo": True})
+    assert format_engagement_guidance([demo], brand="Jade", platform="linkedin") == ""
+
+
+def test_format_engagement_guidance_surfaces_real_numbers() -> None:
+    from app.db.models import PublishEvent
+    from app.memory.retrieval import format_engagement_guidance
+
+    real = PublishEvent(content_id=7, event="engagement", provider="buffer",
+                        external_post_id="buf-7", payload={"impressions": 1200, "ctr": 0.031})
+    result = format_engagement_guidance([real], brand="Jade", platform="linkedin")
+    assert "1200" in result and "content_id=7" in result
+
+
+def test_memory_retrieval_node_injects_real_engagement(monkeypatch) -> None:
+    from app.db.models import PublishEvent
+
+    real = PublishEvent(content_id=7, event="engagement", provider="buffer",
+                        external_post_id="buf-7", payload={"impressions": 1200, "ctr": 0.031})
+    monkeypatch.setattr(nodes_module, "get_recent_feedback", lambda db, **kw: [])
+    monkeypatch.setattr(nodes_module, "get_recent_engagement", lambda db, **kw: [real])
+
+    result = nodes_module.memory_retrieval_node(
+        {"brand": "Jade", "platform": "linkedin", "language": "en", "draft_content": "",
+         "compliance_errors": [], "retry_count": 0, "feedback_guidance": ""}
+    )
+
+    assert "MEASURED PERFORMANCE" in result["engagement_guidance"]

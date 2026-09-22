@@ -32,3 +32,42 @@ def format_guidance(entries: list[FeedbackMemory]) -> str:
         "CRITICAL GUIDANCE: Previously, human reviewers rejected content for "
         f"this brand due to: {notes}. You MUST NOT repeat these mistakes."
     )
+
+
+def get_recent_engagement(db: Session, *, limit: int = 20) -> list:
+    """Latest REAL engagement events (demo/mock rows excluded — fabricated
+    metrics must never steer generation). Newest first."""
+    from app.db.models import PublishEvent
+
+    stmt = (
+        select(PublishEvent)
+        .where(PublishEvent.event == "engagement", PublishEvent.provider != "mock-demo")
+        .order_by(PublishEvent.created_at.desc())
+        .limit(limit)
+    )
+    return list(db.execute(stmt).scalars())
+
+
+def format_engagement_guidance(entries: list, *, brand: str, platform: str) -> str:
+    """Honest performance signal for the content agent. Empty when nothing
+    real has been measured yet — never invent performance claims."""
+    relevant = []
+    for entry in entries:
+        payload = entry.payload or {}
+        if not isinstance(payload, dict) or payload.get("demo"):
+            continue
+        relevant.append(entry)
+        if len(relevant) >= 5:
+            break
+    if not relevant:
+        return ""
+    parts = []
+    for entry in relevant:
+        payload = entry.payload or {}
+        impressions = payload.get("impressions", "?")
+        ctr = payload.get("ctr", "?")
+        parts.append(f"content_id={entry.content_id} provider={entry.provider} impressions={impressions} ctr={ctr}")
+    return (
+        "MEASURED PERFORMANCE (real published posts, learn what resonated; "
+        "do not invent similar numbers): " + "; ".join(parts)
+    )

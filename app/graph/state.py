@@ -17,6 +17,7 @@ class MarketingState(TypedDict):
     topic: NotRequired[str]
     content_type: NotRequired[str]
     market_research: NotRequired[str]
+    engagement_guidance: NotRequired[str]
     enable_adversarial: NotRequired[bool]
     audit_transcript: NotRequired[str]
     healed_content: NotRequired[str]

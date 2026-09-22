@@ -18,7 +18,12 @@ from app.graph.state import MarketingState
 from app.llm.client import COMPLIANCE_SCHEMA, LLMError, structured_call, text_call
 from app.llm.fallback import fallback_content, fallback_localize, heuristic_compliance_check, self_healing_fix
 from app.media.assembly import assemble_video
-from app.memory.retrieval import format_guidance, get_recent_feedback
+from app.memory.retrieval import (
+    format_engagement_guidance,
+    format_guidance,
+    get_recent_engagement,
+    get_recent_feedback,
+)
 from app.utils.research import research_summary
 
 log = logging.getLogger(__name__)
@@ -45,10 +50,16 @@ def _adversarial_debate(brand: str, draft: str, rubric: str, violations: list[st
 
 
 def memory_retrieval_node(state: MarketingState) -> dict:
-    """Runs before content_node on every generation (not on retries)."""
+    """Runs before content_node on every generation (not on retries). Pulls
+    human feedback AND measured real-post performance for the content agent."""
     with session_scope() as db:
         entries = get_recent_feedback(db, brand=state["brand"], platform=state["platform"])
-    return {"feedback_guidance": format_guidance(entries)}
+        engagement = get_recent_engagement(db)
+    return {
+        "feedback_guidance": format_guidance(entries),
+        "engagement_guidance": format_engagement_guidance(
+            engagement, brand=state["brand"], platform=state["platform"]),
+    }
 
 
 def market_research_node(state: MarketingState) -> dict:
@@ -79,6 +90,7 @@ def content_node(state: MarketingState) -> dict:
         brand=state["brand"],
         platform=state["platform"],
         feedback_guidance=state.get("feedback_guidance", ""),
+        engagement_guidance=state.get("engagement_guidance", ""),
     )
     user = prompts.content_user_prompt(
         brand=state["brand"],

@@ -14,6 +14,7 @@ from app.config import settings
 from app.db.database import get_db
 from app.db.models import ContentQueue, ContentStatus, ErrorTag, FeedbackMemory, Lead
 from app.memory.store import create_feedback_entry
+from worker.intel import latest_digests
 
 router = APIRouter(tags=["dashboard"])
 templates = Jinja2Templates(directory=str(settings.base_dir / "app" / "templates"))
@@ -40,6 +41,8 @@ def _get_item_or_404(content_id: int, db: Session) -> ContentQueue:
 
 @router.get("/dashboard", response_class=HTMLResponse)
 def dashboard_home(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
+    from worker.intel import latest_digests
+
     items = list(
         db.scalars(
             select(ContentQueue)
@@ -48,7 +51,8 @@ def dashboard_home(request: Request, db: Session = Depends(get_db)) -> HTMLRespo
         )
     )
     return templates.TemplateResponse(
-        request, "dashboard.html", {"items": items, "active_tab": "queue"}
+        request, "dashboard.html",
+        {"items": items, "active_tab": "queue", "digests": latest_digests(db)},
     )
 
 
@@ -330,10 +334,11 @@ def generate_campaign(
                 .order_by(ContentQueue.created_at.desc())
             )
         )
+        digests = latest_digests(db)
     finally:
         db.close()
     return templates.TemplateResponse(
-        request, "dashboard.html", {"items": items, "active_tab": "queue", "banner": msg}
+        request, "dashboard.html", {"items": items, "active_tab": "queue", "banner": msg, "digests": digests}
     )
 
 
@@ -397,8 +402,9 @@ def newsjack(
                 .order_by(ContentQueue.created_at.desc())
             )
         )
+        digests = latest_digests(db)
     finally:
         db.close()
     return templates.TemplateResponse(
-        request, "dashboard.html", {"items": items, "active_tab": "queue", "banner": msg}
+        request, "dashboard.html", {"items": items, "active_tab": "queue", "banner": msg, "digests": digests}
     )

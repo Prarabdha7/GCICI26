@@ -87,6 +87,32 @@ class LeadStatus(str, Enum):
     DISQUALIFIED = "disqualified"
 
 
+class IntelDigest(Base):
+    """Periodic competitor-intelligence digest (brief item 1).
+
+    Written by worker/intel.py::intel_sweep (default every 6h). The newest row
+    per (brand, country) is what the dashboard shows and what newsjack uses
+    as its topic source. Demo rows are labeled and excluded from any metrics.
+    """
+
+    __tablename__ = "intel_digests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    brand: Mapped[str] = mapped_column(String(64), index=True)
+    niche: Mapped[str] = mapped_column(String(128), default="")
+    country: Mapped[str] = mapped_column(String(64), index=True, default="")
+    digest_text: Mapped[str] = mapped_column(Text, default="")
+    sources_json: Mapped[str | None] = mapped_column(Text, default=None)
+    is_demo: Mapped[bool] = mapped_column(default=False)
+
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (Index("ix_digest_brand_country_created", "brand", "country", "created_at"),)
+
+    def __repr__(self) -> str:
+        return f"<IntelDigest id={self.id} {self.brand}/{self.country}>"
+
+
 # --------------------------------------------------------------------------- #
 # Tables
 # --------------------------------------------------------------------------- #

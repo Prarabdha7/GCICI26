@@ -21,9 +21,60 @@ PACK_SCHEMA: dict = {
         "video_script": {"type": "string"},
         "variant_a": {"type": "string"},
         "variant_b": {"type": "string"},
+        "hashtags": {"type": "array", "items": {"type": "string"}},
     },
     "required": ["linkedin", "thread", "carousel", "video_script", "variant_a", "variant_b"],
 }
+
+# Deterministic offline tag seeds (suggestions for the human reviewer, never
+# auto-posted). Brand/niche tags only — no invented campaign claims.
+OFFLINE_TAGS: dict[str, list[str]] = {
+    "jade": ["#JewellersBlock", "#FineJewellery", "#SingaporeJewellers"],
+    "jaguar_transit": ["#CargoInsurance", "#LogisticsRisk", "#SupplyChain"],
+    "doctorshield": ["#MedicalIndemnity", "#DoctorsOfSingapore", "#MedicoLegal"],
+}
+PLATFORM_TAGS: dict[str, list[str]] = {
+    "instagram": ["#Reel", "#InstaBusiness"],
+    "tiktok": ["#TikTokBusiness", "#LearnOnTikTok"],
+    "linkedin": ["#B2B", "#RiskManagement"],
+    "x": ["#InsurTech"],
+    "blog": ["#InsuranceBlog", "#SEO"],
+}
+
+
+def suggest_hashtags(draft: str, brand: str, platform: str = "linkedin") -> tuple[list[str], str]:
+    """Suggest hashtags + SEO keywords for the human reviewer.
+
+    Returns (tags, source) where source is 'llm' or 'offline'. LLM tags when
+    the model is reachable; otherwise deterministic brand/platform seeds.
+    Tags are suggestions shown in review — never silently appended to posts.
+    """
+    from app.agents.brand_knowledge import get_brand  # noqa: F401 (keeps brand key canonical)
+
+    key = (brand or "").strip().lower().replace(" ", "_")
+    if key not in OFFLINE_TAGS:
+        key = "jade" if "jade" in key else "doctorshield" if "doctor" in key else "jaguar_transit" if "jaguar" in key else "jade"
+    try:
+        from app.llm.client import structured_call
+
+        verdict = structured_call(
+            system=(f"You are a hashtag and SEO assistant for {brand} ({platform}). "
+                    "Suggest 5-8 hashtags and 3 SEO keywords for the draft. Return only JSON: "
+                    '{"hashtags": [str], "keywords": [str]}.'),
+            user=f"Draft:\n{(draft or '')[:1200]}",
+            schema={"type": "object",
+                    "properties": {"hashtags": {"type": "array", "items": {"type": "string"}},
+                                   "keywords": {"type": "array", "items": {"type": "string"}}},
+                    "required": ["hashtags"]},
+        )
+        tags = [t if t.startswith("#") else f"#{t}" for t in (verdict.get("hashtags") or [])][:8]
+        kws = list(verdict.get("keywords") or [])[:3]
+        if tags:
+            return (tags + [f"#{k.replace(' ', '')}" for k in kws if k], "llm")
+    except Exception as exc:
+        log.warning("hashtag LLM unavailable (%s) — offline seeds", exc)
+    tags = list(OFFLINE_TAGS.get(key, [])) + PLATFORM_TAGS.get((platform or "").lower(), [])
+    return (tags[:8], "offline")
 
 
 def _offline_pack(draft: str, brand: str) -> dict:
@@ -75,7 +126,7 @@ def focus_group_notes(draft: str, brand: str) -> list[str]:
 def build_format_pack(draft: str, brand: str, platform: str = "linkedin") -> dict:
     """Try LLM JSON pack, fall back offline. Always returns full schema."""
     try:
-        from app.llm.client import LLMError, structured_call
+        from app.llm.client import structured_call
 
         system = (
             f"You are the repurposing agent for {brand}. Turn one draft into a multi-format pack. "
@@ -89,10 +140,17 @@ def build_format_pack(draft: str, brand: str, platform: str = "linkedin") -> dic
         for k in pack:
             if verdict.get(k):
                 pack[k] = verdict[k]
+        tags, source = suggest_hashtags(draft, brand, platform)
+        pack["hashtags"] = verdict.get("hashtags") or tags
+        pack["hashtags_source"] = "llm" if verdict.get("hashtags") else source
         return pack
     except Exception as exc:
         log.warning("format pack LLM unavailable (%s) — offline builder", exc)
-        return _offline_pack(draft, brand)
+        pack = _offline_pack(draft, brand)
+        tags, source = suggest_hashtags(draft, brand, platform)
+        pack["hashtags"] = tags
+        pack["hashtags_source"] = source
+        return pack
 
 
 def pack_to_json(pack: dict) -> str:

@@ -64,6 +64,12 @@
         <button type="submit">Research + Generate</button>
     </form>
 </article>
+<article>
+    <h3>Latest intel digests (periodic sweep)</h3>
+    <ul>
+        {% for d in digests %}<li><strong>{{ d.brand }} / {{ d.country }}</strong>{% if d.is_demo %} <span class="badge">demo</span>{% endif %}<br><em>{{ (d.digest_text or "no findings this sweep")[:220] }}</em></li>{% else %}<li><em>No digests yet.</em></li>{% endfor %}
+    </ul>
+</article>
 <table>
     <thead>
         <tr><th>Brand</th><th>Platform</th><th>Language</th><th>Draft</th><th>Retries</th><th style="width: 1%;">Actions</th></tr>
