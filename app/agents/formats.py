@@ -1,8 +1,18 @@
-"""Multi-format pack: one idea -> linkedin + thread + carousel + video script + A/B.
+"""Multi-channel content pack decomposition and deterministic syndication formatting.
 
-LLM JSON when available; otherwise a deterministic offline builder that only
-reformats the ACTUAL draft (sentence splits) — never invents new claims.
-The synthetic focus-group panel is demo-only (DEMO_MODE=true) and labeled.
+This module decomposes a single master marketing narrative into platform-specific
+distribution assets:
+    - LinkedIn: Executive long-form risk advisory narrative with formal disclaimers.
+    - X (Twitter): 5-part threaded breakdown with numbered progression.
+    - Instagram: Multi-card carousel copy chunks formatted for visual slide overlays.
+    - Video Script: 30-second kinetic script decomposed into Hook, Problem/Body, and CTA.
+    - A/B Variants: Angle-differentiated copy variants (Heritage vs. Risk Control).
+
+Execution Modes:
+    - Online Path: Calls structured LLM generation constrained by `PACK_SCHEMA`.
+    - Deterministic Offline Path: When LLMs are unreachable or in air-gapped test runs,
+      `_offline_pack` parses the canonical draft text using sentence tokenization,
+      preserving all underwriting claims without fabricating unverified benefits.
 """
 
 from __future__ import annotations
@@ -27,6 +37,18 @@ PACK_SCHEMA: dict = {
 
 
 def _offline_pack(draft: str, brand: str) -> dict:
+    """Deterministically segment and reformat draft text into multi-channel asset formats.
+
+    Performs sentence segmentation over the provided draft text, padding to
+    ensure standard thread and carousel lengths without hallucinating new claims.
+
+    Args:
+        draft: Approved source copy text.
+        brand: Insurance persona identifier for safe fallback disclaimers.
+
+    Returns:
+        dict: Asset bundle containing platform-adapted text keys and variant pairs.
+    """
     from app.config import settings as _settings
 
     base = (draft or "").strip() or f"{brand} protection update. Terms apply."

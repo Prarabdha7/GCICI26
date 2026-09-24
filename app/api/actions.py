@@ -1,21 +1,23 @@
-"""Interactive Operations and Media Generation API Router.
+"""Interactive operations and media synthesis API router.
 
-This module provides the primary FastAPI router for interactive client operations,
-bridging the reactive frontend single-page application with the underlying LangGraph
-state engine, generative media pipeline, statutory compliance checkers, and background
-publishing services.
+This module exposes the `/api` HTTP endpoints that bridge user interactions in
+the presentation layer with the compiled LangGraph orchestration pipeline, media
+rendering engines, regulatory validation gates, and relational queue persistence.
 
-Functional Scope:
-    - Pipeline Execution: Orchestrates multi-agent campaign synthesis and newsjacking runs.
-    - Human-in-the-Loop Review: Handles approval, rejection, and editorial redlining with
-      closed-loop feedback storage.
-    - Media Studio: Coordinates on-demand FLUX image synthesis, Edge-TTS neural speech,
-      and 9:16 vertical video reel rendering with synchronized kinetic subtitles.
-    - Statutory Compliance Lab: Provides real-time rubric audits against MAS Notice 318,
-      BNM, and HKIA regulations with 3-agent adversarial consensus and self-healing.
-    - Perception Engine: Executes real-time competitor intelligence scraping via Crawl4AI,
-      Tavily, and Serper.
-    - Second Brain Vault: Exposes bidirectional Obsidian knowledge graphs and 3-tier memory telemetry.
+Design and Concurrency Model:
+    1. Pipeline Execution: Long-running agent workflows run synchronously on worker
+       threads via `run_in_executor` or inside LangGraph step invocations. Thread
+       identifiers are UUID-tagged to enable checkpoint resumption and audit isolation.
+    2. Regulatory Invariants: All generative endpoints default to an unapproved state
+       (`pending` or `manual_intervention`). Under MAS Notice 318 compliance guidelines,
+       no programmatic action can bypass the human review barrier; transitions to
+       `approved` or `scheduled` require explicit human operator submission.
+    3. Media Resolution: Ephemeral output assets (MP4 reels, WAV/MP3 stems, SRT
+       subtitles, and PNG caption cards) generated in `temp/` or `assets/generated/`
+       are mapped to sandboxed, relative URL paths to prevent path traversal exploits.
+    4. Deterministic Error Translation: Upstream provider outages (e.g., LLM rate limits,
+       TTS connection drops) are translated into explicit HTTP status codes (400, 404,
+       503) with machine-parseable error payloads rather than leaking unhandled stack traces.
 """
 
 from __future__ import annotations

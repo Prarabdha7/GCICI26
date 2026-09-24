@@ -1,22 +1,21 @@
-"""LangGraph Cognitive Workflow Node Implementations.
+"""Discrete execution nodes for the LangGraph state machine.
 
-This module contains the functional state transformation nodes executed by the
-JA Assure marketing state machine. Each node represents a distinct agent or tool
-in the pipeline:
+Each function in this module acts as a pure or effectful transformation step over
+`MarketingState`. Nodes are executed sequentially or conditionally by the compiled
+LangGraph runtime (`app.graph.graph.build_graph`).
 
-Workflow Graph Topology:
-    1. Memory Retrieval Node: Injects historical human editorial critiques and Mem0
-       reflections to prevent recurring errors.
-    2. Market Research Node: Ingests real-time market sentiment and competitor developments
-       via Crawl4AI and search integrations.
-    3. Content Generation Node: Drafts platform-tailored copy under multi-brand persona
-       constraints (Jade, Jaguar Transit, DoctorShield).
-    4. Localization Node: Adapts draft content for Southeast Asian regional vernaculars
-       (English, Malay, Bahasa Indonesia, Thai, Traditional Chinese).
-    5. Statutory Compliance Gate: Evaluates drafts against MAS Notice 318, BNM, and HKIA
-       rubrics using deterministic zero-temperature judgment and adversarial debate.
-    6. Media Assembly Nodes: Compiles FLUX diffusion backdrops and 9:16 vertical video reels.
-    7. Persistence Node: Commits approved drafts to relational storage for human review.
+State Transition Semantics:
+    1. Immutability & Threading: Node functions accept the current immutable state
+       snapshot, perform their domain-specific step, and return a dictionary of partial
+       state updates to be merged by LangGraph's reducer.
+    2. Fail-Safe Cascading: External services (live search, LLM completions, media
+       synthesis) are wrapped in fail-closed heuristic fallbacks (`app.llm.fallback`).
+       Node execution will not raise fatal exceptions on network or API failures, ensuring
+       deterministic completion through to the compliance evaluation gate.
+    3. Statutory Gatekeeping: Compliance nodes evaluate drafted copy deterministically
+       against regulatory rules (MAS Notice 318 / BNM / HKIA). On violation, the node
+       initiates an adversarial 3-agent debate loop with a hard retry ceiling to prevent
+       infinite token consumption.
 """
 
 from __future__ import annotations

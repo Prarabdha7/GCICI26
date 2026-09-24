@@ -1,4 +1,15 @@
-"""Lead generation agent: discovery, enrichment, scoring and outreach drafting."""
+"""B2B prospect discovery, domain enrichment, underwriting scoring, and outreach synthesis.
+
+This module implements the 4-phase lead acquisition sub-pipeline:
+    1. Discovery (`discovery_node`): Queries search engines or business registries
+       for prospective commercial insurance buyers matching a niche and territory.
+    2. Enrichment (`enrichment_node`): Resolves decision-maker contact details, roles,
+       and verified email addresses via Hunter.io domain search.
+    3. Scoring & Outreach (`scoring_outreach_node`): Evaluates underwriting appetite fit
+       (0-100) via structured LLM inference and drafts bespoke cold outreach copy.
+    4. Persistence (`persist_leads_node`): Commits qualified leads to the relational
+       database under the `Lead` model for CRM export and sales dispatch.
+"""
 
 from __future__ import annotations
 
@@ -27,9 +38,23 @@ LEAD_SCORE_SCHEMA: dict[str, Any] = {
 }
 
 
-def discovery_node(state: LeadGenState) -> dict:
-    """Finds prospects in the target niche/market. Runs in parallel with research_node.
-    Real mode: provider failures propagate honestly. Demo mode: labeled mock data."""
+def discovery_node(state: LeadGenState) -> dict[str, Any]:
+    """Discover commercial entities in the target market matching the specified risk niche.
+
+    Dispatches discovery queries to the active provider (e.g. Google Places,
+    custom scrapers). In real production mode, missing credentials or connection
+    failures propagate immediately as `ProviderError`. In explicitly enabled demo
+    mode, labeled fallback prospects are supplied to enable offline evaluation.
+
+    Args:
+        state: Current `LeadGenState` containing `niche` and `country` criteria.
+
+    Returns:
+        dict[str, Any]: Partial state update with `discovered` prospect records.
+
+    Raises:
+        ProviderError: If the underlying discovery provider fails in real mode.
+    """
     try:
         provider = get_discovery_provider()
         discovered = provider.discover(niche=state["niche"], country=state["country"])
@@ -43,8 +68,19 @@ def discovery_node(state: LeadGenState) -> dict:
     return {"discovered": discovered}
 
 
-def enrichment_node(state: LeadGenState) -> dict:
-    """Pulls professional contacts for each discovered domain via Hunter.io."""
+def enrichment_node(state: LeadGenState) -> dict[str, Any]:
+    """Enrich discovered company domains with verified corporate contacts via Hunter.io.
+
+    Parses the domain hostname from each prospect's website URL and queries
+    the Hunter API. Unresolvable domains or missing enrichment keys fail softly,
+    returning an empty contacts list for that prospect rather than aborting the pipeline.
+
+    Args:
+        state: Current `LeadGenState` containing the `discovered` prospect list.
+
+    Returns:
+        dict[str, Any]: Partial state update with `enriched` prospect records.
+    """
     enriched = []
     for prospect in state.get("discovered", []):
         domain = urlparse(prospect.get("website", "")).netloc or prospect.get("website", "")
@@ -56,9 +92,23 @@ def enrichment_node(state: LeadGenState) -> dict:
     return {"enriched": enriched}
 
 
-def scoring_outreach_node(state: LeadGenState) -> dict:
-    """Scores each enriched prospect's fit and drafts a personalised outreach message.
-    Real mode: LLM failures propagate honestly. Demo mode: labeled heuristic score."""
+def scoring_outreach_node(state: LeadGenState) -> dict[str, Any]:
+    """Score underwriting appetite fit and draft personalized executive outreach copy.
+
+    Invokes structured LLM completion with `LEAD_SCORE_SCHEMA` to rate suitability
+    between 0 and 100 and generate a targeted introductory proposal.
+    In real mode, LLM failures propagate honestly as `LLMError`. In demo mode, a
+    heuristically generated score and draft message are attached with explicit demo tagging.
+
+    Args:
+        state: Current `LeadGenState` containing enriched prospect records.
+
+    Returns:
+        dict[str, Any]: Partial state update with scored and drafted `leads`.
+
+    Raises:
+        LLMError: If structured generation fails while running in real mode.
+    """
     leads = []
     for prospect in state.get("enriched", []):
         system = lead_scoring_system_prompt(brand=state["brand"])
@@ -82,8 +132,20 @@ def scoring_outreach_node(state: LeadGenState) -> dict:
     return {"leads": leads}
 
 
-def persist_leads_node(state: LeadGenState) -> dict:
-    """Writes scored, drafted prospects to the leads table."""
+def persist_leads_node(state: LeadGenState) -> dict[str, Any]:
+    """Persist scored and drafted prospects to the relational leads database table.
+
+    Iterates over the evaluated lead collection, maps company contact details to the
+    SQLAlchemy `Lead` ORM model, and executes an atomic commit within `session_scope()`.
+    Preserves audit traceability by assigning initial status `LeadStatus.NEW` and
+    tagging synthetic leads with `is_demo=True`.
+
+    Args:
+        state: Current `LeadGenState` containing final scored `leads`.
+
+    Returns:
+        dict[str, Any]: Partial state update containing the assigned database `lead_ids`.
+    """
     lead_ids = []
     with session_scope() as db:
         for lead in state.get("leads", []):

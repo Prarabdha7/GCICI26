@@ -3,9 +3,9 @@
 <p align="left">
   <a href="https://github.com/prarabdha7/GCICI26"><img src="https://img.shields.io/badge/GitHub-prarabdha7%2FGCICI26-black.svg?logo=github" alt="GitHub Repository"></a>
   <img src="https://img.shields.io/badge/Python-3.11%20|%203.12%20|%203.13-3776AB.svg?logo=python&logoColor=white" alt="Python 3.11 | 3.12 | 3.13">
-  <img src="https://img.shields.io/badge/FastAPI-0.111-009688.svg?logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/FastAPI-0.128-009688.svg?logo=fastapi&logoColor=white" alt="FastAPI">
   <img src="https://img.shields.io/badge/Orchestration-LangGraph%20Cyclic%20State%20Machine-7C3AED.svg" alt="LangGraph">
-  <img src="https://img.shields.io/badge/LLM-Gemini%202.0%20Flash%20%7C%20GPT--4o-4285F4.svg?logo=google&logoColor=white" alt="LLM Providers">
+  <img src="https://img.shields.io/badge/LLM-Gemini%203.6%20Flash%20%7C%20GPT--4o--mini-4285F4.svg?logo=google&logoColor=white" alt="LLM Providers">
   <img src="https://img.shields.io/badge/Compliance-MAS%20Notice%20318%20%7C%20BNM%20%7C%20HKIA-0F766E.svg" alt="Regulatory Compliance">
   <img src="https://img.shields.io/badge/Media-FFmpeg%20%2B%20Edge--TTS%20%2B%20FLUX.1-E11D48.svg" alt="Media Engine">
   <img src="https://img.shields.io/badge/Memory-SQLite%20%2B%20Obsidian%20Vault-6B7280.svg" alt="Memory Architecture">
@@ -15,7 +15,7 @@
 
 > **Repository**: [https://github.com/prarabdha7/GCICI26](https://github.com/prarabdha7/GCICI26)
 
-**JA Assure Intelligence OS** is an autonomous enterprise marketing system engineered for **JA Assure** — a Singapore-headquartered niche InsurTech managing high-value risk portfolios across South East Asia and Hong Kong. It combines a cyclic LangGraph state machine, a 3-tier cognitive memory architecture, real-time competitive intelligence, deterministic statutory compliance auditing (MAS Notice 318), and a zero-cost programmatic media rendering studio (FFmpeg, Edge-TTS, FLUX.1).
+**JA Assure Intelligence OS** is an autonomous enterprise marketing system engineered for **JA Assure** — a Singapore-headquartered niche InsurTech managing high-value risk portfolios across South East Asia and Hong Kong. It combines a cyclic LangGraph state machine, a 3-tier cognitive memory architecture, real-time competitive intelligence, deterministic statutory compliance auditing (MAS Notice 318), and a zero-cost programmatic media rendering studio (FFmpeg + MoviePy, Edge-TTS, Pollinations FLUX.1 with optional Gemini image / Veo video).
 
 Three distinct risk brands are supported out of the box:
 
@@ -45,42 +45,47 @@ Three distinct risk brands are supported out of the box:
 The codebase is organized into modular layers separating state-machine orchestration, compliance auditing, media assembly, and the Apple Design Method presentation layer:
 
 ```
-GCICI/
+repo-root/
 ├── app/
 │   ├── main.py                     # Primary FastAPI application, middleware and unified mounting
-│   ├── config.py                   # Pydantic Settings with strict validation and .env resolution
+│   ├── config.py                   # Pydantic Settings (defaults: gemini-3.6-flash / gpt-4o-mini) + .env resolution
 │   ├── agents/
 │   │   ├── brand_knowledge.py      # Underwriting criteria, warranties and brand rubrics
 │   │   ├── formats.py              # Multi-channel formatting (LinkedIn, IG, X, TikTok, Focus Group)
-│   │   ├── inquisitor.py           # Adversarial compliance evaluator and 3-agent debate
+│   │   ├── prompts.py              # Zero-shot and few-shot system prompts incl. adversarial marketer / inquisitor / arbiter + memory injection
 │   │   ├── leads.py                # B2B prospecting and underwriting fit-score algorithm
-│   │   ├── prompts.py              # Zero-shot and few-shot system prompts with memory injection
-│   │   └── providers.py            # Unified LLM provider interface (Gemini / OpenAI)
+│   │   ├── research.py             # Lead-gen research node (DuckDuckGo + Crawl4AI via utils/research.py, mock fallback)
+│   │   └── providers.py            # Search / discovery / scrape providers (Serper, Google Places, ScrapeGraph, Hunter + deterministic mocks)
 │   ├── api/
 │   │   ├── actions.py              # Core JSON actions API for media, perception and compliance
+│   │   ├── routes.py               # Programmatic /api/v1 REST endpoints
+│   │   ├── schemas.py              # Shared request/response schemas
 │   │   └── dashboard.py            # Legacy server-side review dashboard and telemetry endpoints
 │   ├── db/
 │   │   ├── database.py             # SQLAlchemy engine, sessionmaker and SQLite/Postgres scopes
-│   │   └── models.py               # ContentQueue, FeedbackMemory, LeadEntry ORM schemas
+│   │   ├── models.py               # ContentQueue, FeedbackMemory, LeadEntry ORM schemas
+│   │   └── persist.py              # Persistence helpers for queue rows
 │   ├── graph/
-│   │   ├── nodes.py                # Discrete LangGraph nodes: research, draft, localize, audit
+│   │   ├── nodes.py                # Discrete LangGraph nodes incl. _adversarial_debate (marketer / inquisitor / arbiter in-code, no separate inquisitor.py)
 │   │   ├── routing.py              # Edge routing logic for the compliance and localization gates
 │   │   ├── graph.py                # Graph assembly: node wiring, edge routing, compilation
+│   │   ├── lead_gen_graph.py       # Lead-generation subgraph wiring
 │   │   └── state.py                # TypedDict MarketingState carrying cumulative run context
 │   ├── integrations/
-│   │   └── obsidian.py             # Bidirectional Second Brain Markdown and Excalidraw exporter
+│   │   ├── obsidian.py             # Bidirectional Second Brain Markdown and Excalidraw exporter
+│   │   └── memgpt.py               # Optional MemGPT guidance augmentation (disabled when blank)
 │   ├── llm/
-│   │   ├── client.py               # Provider-agnostic client with automatic rate-limit cascading
+│   │   ├── client.py               # Provider-agnostic LLM client (Gemini primary gemini-3.6-flash with gemini-2.0/2.5-flash cascade; OpenAI gpt-4o-mini) + Pollinations FLUX fallback + Veo video
 │   │   └── fallback.py             # Domain-grounded heuristic fallback and self-healing engine
 │   ├── media/
-│   │   ├── assembly.py             # Direct FFmpeg 1080x1920 encoder and timed SRT subtitle burn-in
-│   │   ├── image_gen.py            # FLUX.1 visual synthesis and brand color grading
+│   │   ├── assembly.py             # FFmpeg 1080x1920 encoder or MoviePy composition + timed SRT subtitle burn-in + Veo Tier-1 path
+│   │   ├── image_gen.py            # Pollinations FLUX.1 / Gemini image synthesis and brand color grading
 │   │   └── stock_video.py          # Semantic stock footage selector and fallback video provider
 │   └── utils/
-│       └── research.py             # Live Tavily, Serper and Crawl4AI competitor intelligence scraper
-├── frontend/
+│       └── research.py             # Keyless DuckDuckGo + Crawl4AI competitor intelligence (replaces Tavily path; httpx/BS4 + mock fallback)
+├── frontend/                       # Vanilla HTML / CSS / JS SPA (no Next.js / React / Remotion dependency)
 │   ├── index.html                  # Apple Keynote UI shell and Cupertino viewport container
-│   ├── app.js                      # Reactive SPA controller (10 views, audio visualizer, scrub)
+│   ├── app.js                      # Reactive SPA controller (views, audio visualizer, Remotion-style CSS player, scrub)
 │   └── styles.css                  # Apple Design Method design tokens, glassmorphism and typography
 ├── worker/
 │   ├── publisher.py                # Buffer / Ayrshare social dispatcher and webhook handler
@@ -94,7 +99,7 @@ GCICI/
 ├── tests/                          # 182 comprehensive unit, integration and compliance tests
 ├── run.py                          # Unified server runner (spawns API + background workers)
 ├── GITHUB_REPO.txt                 # Canonical repository URL
-└── requirements.txt                # Pinned production dependencies
+└── requirements.txt                # Version-ranged production dependencies (>=, incl. moviepy<2.0)
 ```
 
 ---
@@ -103,10 +108,10 @@ GCICI/
 
 The frontend is constructed following the **Apple Design Method (ADM)** — featuring cinematic typography, frosted glassmorphic cards (`backdrop-filter: blur(20px)`), an Apple Keynote boot loader, live audio waveform visualizers, and interactive playhead scrubbers.
 
-| **Obsidian Second Brain Knowledge Graph** | **Zero-Cost Media Studio and Remotion Player** |
+| **Obsidian Second Brain Knowledge Graph** | **Zero-Cost Media Studio and FFmpeg Reel Player** |
 |:---:|:---:|
 | <a href="docs/images/obsidian_vault_graph.png"><img src="docs/images/obsidian_vault_graph.png" width="450" alt="Obsidian Knowledge Graph"></a> | <a href="docs/images/zero_cost_media_studio.png"><img src="docs/images/zero_cost_media_studio.png" width="450" alt="Media Studio"></a> |
-| *Topological graph mapping brands, underwriting constraints and MAS 318 rules.* | *Remotion programmatic player, 28-bar waveform and FLUX.1 diffusion.* |
+| *Topological graph mapping brands, underwriting constraints and MAS 318 rules.* | *FFmpeg / MoviePy programmatic pipeline with Remotion-style CSS player, waveform and FLUX.1 diffusion (no Remotion library dependency).* |
 
 | **MAS Notice 318 Compliance and Self-Healing** | **Real-Time Competitor Perception Engine** |
 |:---:|:---:|
@@ -115,8 +120,8 @@ The frontend is constructed following the **Apple Design Method (ADM)** — feat
 
 | **Review Queue and Auto-Publisher Worker** | **1080x1920 MP4 Video Reel with Burned Subtitles** |
 |:---:|:---:|
-| <a href="docs/images/review_queue_publisher.png"><img src="docs/images/review_queue_publisher.png" width="450" alt="Review Queue"></a> | <a href="docs/images/remotion_video_player.png"><img src="docs/images/remotion_video_player.png" width="450" alt="Video Reel Player"></a> |
-| *MAS Notice 318 Human-in-the-Loop gate with 1-click dispatch.* | *Cinematic AI camera motion (Ken Burns zoompan) with burned captions.* |
+| <a href="docs/images/review_queue_publisher.png"><img src="docs/images/review_queue_publisher.png" width="450" alt="Review Queue"></a> | <a href="docs/images/remotion_video_player.png"><img src="docs/images/remotion_video_player.png" width="450" alt="Video Reel Player (FFmpeg output shown in Remotion-style preview)"></a> |
+| *MAS Notice 318 Human-in-the-Loop gate with 1-click dispatch.* | *Cinematic AI camera motion (Ken Burns zoompan) with burned captions — rendered by FFmpeg / MoviePy, previewed in a Remotion-style CSS canvas.* |
 
 ---
 
@@ -160,7 +165,7 @@ graph TD
 
 ### Phase 1: Live Market Perception and Competitor Scraping
 
-- **Action**: Queries live web indices using **Tavily Neural Search** and **Google Serper**, followed by direct DOM parsing via `httpx` and `BeautifulSoup4`.
+- **Action**: Keyless-first search via **DuckDuckGo + Crawl4AI** (`app/utils/research.py`), with `httpx` + `BeautifulSoup4` fallback and deterministic mocks when live results are empty (`app/agents/providers.py:MockSearchProvider`). **Serper / Google Places / ScrapeGraph / Hunter** activate only when their keys are set; **Tavily** remains only as an optional legacy fallback in `POST /api/perception/scrape` when `TAVILY_API_KEY` is present.
 - **Engineering Justification**: Prevents hallucinated or repetitive claims. Real competitor policy provisions, regulatory UINs, and coverage exclusions (e.g. Kalyan Jewellers vs Tanishq) are extracted via sentence tokenization and converted into actionable counter-hooks.
 
 ### Phase 2: Persona-Driven Content Generation
@@ -179,7 +184,7 @@ graph TD
 
 ### Phase 4: Statutory Compliance Gate and 3-Agent Adversarial Debate
 
-- **Action**: Audits draft copy against external jurisdictional rubrics (`compliance_rubric.md`). If violations are detected (e.g., unsubstantiated guarantees like "100% payout" or missing exclusion clauses), a structured adversarial debate is triggered:
+- **Action**: Audits draft copy against external jurisdictional rubrics (`compliance_rubric.md`). If violations are detected (e.g., unsubstantiated guarantees like "100% payout" or missing exclusion clauses), a structured adversarial debate is triggered in-code via `app/graph/nodes.py:_adversarial_debate` using prompts from `app/agents/prompts.py` (there is no separate `agents/inquisitor.py`):
   1. **Marketer Persona (Growth Optimizer)**: Explains conversion intent.
   2. **Inquisitor Persona (Regulatory Enforcement)**: Formally cites statutory violation clauses and issues a rejection verdict.
   3. **Arbiter Persona (Pareto Frontier Synthesizer)**: Reconciles commercial engagement with strict regulatory compliance.
@@ -228,18 +233,18 @@ The knowledge graph below shows the full topology of brand nodes, underwriting c
 
 Rather than relying on expensive, quota-limited third-party SaaS APIs, JA Assure OS includes a fully localized, zero-cost programmatic media rendering engine:
 
-1. **Visual Diffusion Studio (FLUX.1-schnell)**:
-   - Uses zero-cost Pollinations FLUX.1 diffusion to generate high-resolution commercial photography.
-   - Automatically sanitizes prompt parameters and formats outputs for 9:16 reels, 1:1 carousels, or 16:9 banners.
+1. **Visual Diffusion Studio (Pollinations FLUX.1-schnell, optional Gemini image)**:
+    - Uses zero-cost Pollinations FLUX.1 diffusion to generate high-resolution commercial photography (no key); tries Gemini `gemini-3.1-flash-image` first when `GEMINI_API_KEY` is set, then falls back to Pollinations on quota/billing errors.
+    - Automatically sanitizes prompt parameters and formats outputs for 9:16 reels, 1:1 carousels, or 16:9 banners.
 
 2. **Neural Speech Synthesis (Edge-TTS)**:
    - Synthesizes clean neural speech voiceover tracks in English (`en-SG-WayneNeural`), Malay, Mandarin, Indonesian, or Thai in under 400ms with zero API cost.
 
-3. **Hardware-Accelerated Direct FFmpeg 1080x1920 MP4 Assembler**:
-   - Compiles vertical reels using dynamic camera zoom and pan (`zoompan` Ken Burns effect) over high-resolution diffusion backdrops.
-   - **Burned-In Timed Subtitles**: Automatically aligns frame-accurate SRT subtitles and permanently burns high-legibility captions directly into the MP4 video using libass.
-   - **Instant Web Streaming (`-movflags +faststart`)**: Shifts the MP4 `moov` atom to the beginning of the file, allowing immediate playback in web browsers without waiting for the full file to download.
-   - **Render Benchmark**: 15-second 1080x1920 24fps vertical video compiles in 0.47s to 1.8s.
+3. **FFmpeg 1080x1920 MP4 Assembler (FFmpeg binary or MoviePy composition, optional Veo Tier-1)**:
+    - Compiles vertical reels using dynamic camera zoom and pan (`zoompan` Ken Burns effect) over high-resolution diffusion backdrops. Tries Google Veo (`veo-3.1-fast-generate-preview`) first when configured, then local assembly.
+    - **Burned-In Timed Subtitles**: Automatically aligns frame-accurate SRT subtitles and permanently burns high-legibility captions directly into the MP4 video using libass.
+    - **Instant Web Streaming (`-movflags +faststart`)**: Shifts the MP4 `moov` atom to the beginning of the file, allowing immediate playback in web browsers without waiting for the full file to download.
+    - **Render reference**: 15-second 1080x1920 24fps vertical video reported locally in the 0.47s–1.8s range — hardware/encoder-dependent, not CI-measured.
 
 4. **Direct Browser Downloads**:
    - Native HTML5 direct downloads for `.mp4` video reels, `.srt` subtitle files, `.mp3` voiceover audio, and `.jpg` diffusion imagery.
@@ -248,25 +253,25 @@ Rather than relying on expensive, quota-limited third-party SaaS APIs, JA Assure
 
 ## 7. Computational Complexity and Latency Matrix
 
-The system maximizes concurrency through asynchronous execution (`asyncio.gather`), caching, and hardware-accelerated local compilation:
+The system maximizes concurrency through asynchronous execution (`asyncio.gather`), caching, and hardware-accelerated local compilation. Latencies below are local reference ranges (hardware/network-dependent), not CI-measured benchmarks:
 
-| Pipeline Stage | Time Complexity | Execution Mode | Observed Latency | Technical Optimization |
+| Pipeline Stage | Time Complexity | Execution Mode | Reference latency (local) | Technical Optimization |
 | :--- | :---: | :---: | :---: | :--- |
-| **Perception Scraper** | O(S * Q) | Asynchronous | 1.2s - 2.8s | Concurrent HTTP requests via `httpx` + BeautifulSoup DOM filtering |
-| **Content Node** | O(T) | LLM Generation | 0.8s - 1.9s | Structured schema generation with `gemini-2.0-flash` / domain fallback |
+| **Perception Scraper** | O(S * Q) | Asynchronous | 1.2s - 2.8s | Keyless DuckDuckGo + Crawl4AI; `httpx` + BeautifulSoup fallback; mock slice when empty |
+| **Content Node** | O(T) | LLM Generation | 0.8s - 1.9s | Structured schema generation with `gemini-3.6-flash` (cascade `gemini-2.0/2.5-flash`) / `gpt-4o-mini` / domain fallback |
 | **Statutory Audit** | O(N) | Deterministic | 12ms - 25ms | Regex pattern matching + AST clause validation against rubric |
 | **Neural Voiceover** | O(W) | Streaming Audio | 280ms - 420ms | Edge-TTS neural websocket streaming direct to disk |
-| **FLUX.1 Diffusion** | O(R) | Image Diffusion | 1.8s - 3.5s | Parallel HTTP dispatch with aspect-ratio parameter scaling |
-| **FFmpeg 1080x1920** | O(D) | Local Binary | 0.47s - 1.8s | Multi-threaded `libx264` ultrafast preset + pre-scaled 540:960 canvas |
+| **FLUX.1 Diffusion** | O(R) | Image Diffusion | 1.8s - 3.5s | Pollinations keyless FLUX (or Gemini image when keyed) with aspect-ratio parameter scaling |
+| **FFmpeg 1080x1920** | O(D) | Local Binary | 0.47s - 1.8s | Multi-threaded `libx264` ultrafast preset + pre-scaled 540:960 canvas (MoviePy composition alternate; Veo optional Tier-1) |
 | **Publisher Worker** | O(K) | Background Cron | 50ms | APScheduler 60-second polling loop filtering `status=approved` |
 
 ---
 
 ## 8. Deterministic Statutory Compliance Benchmarks
 
-Marketing copy generated for insurance and financial services must adhere strictly to statutory regulations. The compliance engine was evaluated across 250 test permutations:
+Marketing copy generated for insurance and financial services must adhere strictly to statutory regulations. The engine combines deterministic rubric checks (`compliance_rubric.md`: regex/AST on prohibited terms and mandatory disclosures) with the in-code 3-agent debate and arbiter self-heal (`retry_count <= 3`, else `compliance_diverted` to human queue). Verified by the repo suite: `182 passed` (unit / integration / compliance); the percentages below are enforcement targets per framework, not a separate 250-run measured benchmark:
 
-| Regulatory Framework | Jurisdiction | Target Risk Portfolio | Pass Rate | Primary Enforcement Rule |
+| Regulatory Framework | Jurisdiction | Target Risk Portfolio | Target | Primary Enforcement Rule |
 | :--- | :--- | :--- | :---: | :--- |
 | **MAS Notice 318** | Singapore | Jewellery and High-Value Cargo | 98.4% | Prohibition of absolute guarantees without statutory underwriting disclosure |
 | **BNM Market Conduct** | Malaysia | Marine Cargo and Attended Transit | 96.8% | Mandatory disclosure of claim indemnity ceilings and deductible limits |
@@ -331,11 +336,19 @@ ENVIRONMENT=dev
 # LLM provider (system falls back to domain-grounded models if keys are absent)
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MODEL=gemini-3.6-flash
+GEMINI_IMAGE_MODEL=gemini-3.1-flash-image
+GEMINI_VIDEO_MODEL=veo-3.1-fast-generate-preview
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
 
-# Research and scraping (falls back to direct web scraping if absent)
-TAVILY_API_KEY=your_tavily_key
+# Research and scraping (keyless DuckDuckGo + Crawl4AI by default; keys only enable extras)
 SERPER_API_KEY=your_serper_key
+SCRAPEGRAPH_API_KEY=
+GOOGLE_PLACES_API_KEY=
+HUNTER_API_KEY=
+# Legacy optional fallback only (used by POST /api/perception/scrape if set):
+# TAVILY_API_KEY=
 
 # Publishing channels (falls back to mock publisher if absent)
 BUFFER_ACCESS_TOKEN=your_buffer_token

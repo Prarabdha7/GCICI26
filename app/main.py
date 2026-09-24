@@ -1,17 +1,20 @@
-"""FastAPI Application Server and Lifecycle Management.
+"""FastAPI application entry point, ASGI configuration, and process lifecycle management.
 
-This module initializes the core ASGI application for the JA Assure AI Marketing
-Platform. It configures asynchronous application lifespan hooks, mounts static asset
-and temporal media directories, registers sub-routers (API, Actions, and Dashboard),
-and provides health diagnostics.
+This module constructs the top-level ASGI application instance, registers API routers,
+mounts static asset endpoints, and manages process-level startup and shutdown lifecycle
+events through an asynchronous context manager.
 
-Architectural Components:
-    - Lifespan Hook: Bootstraps relational databases, ensures filesystem directories
-      for ephemeral media, and manages the embedded background publication scheduler.
-    - Routing Topology: Exposes `/api/v1` programmatic REST endpoints, `/api` interactive
-      action endpoints, and `/dashboard` administrative UI views.
-    - Static Mounting: Exposes `/app` (single-page application frontend), `/temp`
-      (rendered video reels and audio tracks), and `/static` (persisted assets).
+Operational Responsibilities:
+    1. Lifespan Coordination: Initialises database schema definitions, validates
+       writable media paths (`temp/` and `assets/generated/`), and launches the
+       embedded APScheduler background worker when `settings.worker_embedded` is active.
+    2. Graceful Teardown: Catches shutdown signals and cleanly releases database
+       connection pools and scheduler threads without dropping in-flight publishing jobs.
+    3. Static Resource Routing: Serves the Apple Design Method single-page interface
+       from `/app`, dynamic media artifacts from `/temp`, and persisted media assets
+       from `/static`.
+    4. Diagnostics: Exposes unauthenticated health check endpoints (`/health`) for container
+       orchestrator probes (Docker / Kubernetes liveness / readiness).
 """
 
 from __future__ import annotations

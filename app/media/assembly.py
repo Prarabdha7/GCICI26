@@ -1,17 +1,24 @@
-"""Vertical Video Reel Assembly and Media Synchronization Engine.
+"""Dual-tier media synthesis, speech synchronization, and video compilation engine.
 
-This module provides end-to-end video synthesis capabilities for 9:16 vertical short-form
-social assets (Instagram Reels, TikTok, YouTube Shorts, and LinkedIn video). It implements
-a dual-tier rendering pipeline:
+This module manages the procedural assembly of 1080x1920 (9:16 vertical) short-form
+video assets for insurance marketing campaigns across Instagram Reels, TikTok,
+and LinkedIn.
 
-Pipeline Architecture:
-    - Generative Diffusion Path (Tier 1): Generates high-fidelity video clips using Google
-      Veo (`veo-3.1-fast-generate-preview`) when API quotas are available.
-    - Deterministic Local Assembly (Tier 2): Synthesizes spoken voiceover via Microsoft
-      Edge-TTS, extracts word-level subtitle alignment timestamps, and compiles a vertical
-      video reel via direct FFmpeg filtering or MoviePy composition.
-    - Subtitle Burn-In: Generates standardized SubRip (.srt) and JSON timestamp tracks,
-      rendering timed bottom-third captions with Ken Burns motion effects.
+Architecture & Subsystem Decomposition:
+    1. Audio Synthesis & Alignment: Dispatches neural speech synthesis via Edge-TTS
+       websocket streaming, extracting word-level boundary timestamps (`offset` and
+       `duration`) for precise downstream subtitle synchronization.
+    2. Dual-Engine Video Rendering:
+       - Direct Hardware/FFmpeg Pipeline (Primary): Executes a single-pass FFmpeg
+         filterchain (`scale`, `crop`, `zoompan` for smooth Ken Burns motion, and
+         `subtitles` filter via libass) with ultrafast x264 presets and `+faststart`
+         moov atom shifting for sub-second compilation and instant web streaming.
+       - MoviePy Composition (Fallback/Testing): Composes composite video clips from
+         Pillow-rendered caption cards, brand color backgrounds, and overlay clips
+         when FFmpeg binaries are unavailable or in unit test mock environments.
+    3. Procedural Kinetic Subtitles: Compiles frame-accurate `.srt` files and renders
+       Pillow-drawn high-contrast typography cards styled to the brand palette
+       (Jade emerald, Jaguar navy, DoctorShield ocean) to guarantee legibility.
 """
 
 from __future__ import annotations

@@ -1,16 +1,18 @@
-"""Configuration and Environment Settings Module.
+"""Centralised application configuration, environment parsing, and credential management.
 
-This module provides strongly-typed configuration management for the JA Assure
-AI Marketing System via Pydantic Settings. It centralizes all application variables,
-database URLs, API credentials, model configurations, and runtime flags loaded from
-local `.env` files or system environment variables.
+This module defines the strongly-typed `Settings` schema powered by Pydantic Settings.
+Configuration is resolved hierarchically from process environment variables, local `.env`
+files, and sensible runtime defaults.
 
-Key Features:
-    - Provider Switching: Dynamically switch between Google Gemini and OpenAI models.
-    - Zero Quota Leaks: Configurable API timeouts and deterministic zero-temperature
-      settings for statutory compliance evaluation.
-    - Storage Independence: Supports SQLite for zero-setup local execution and PostgreSQL
-      for high-throughput production persistence.
+Engineering Principles:
+    1. Fail-Closed Credential Handling: In production mode, absent credentials disable
+       external cloud integrations and gracefully activate deterministic offline
+       fallbacks without throwing unhandled exceptions.
+    2. Storage Decoupling: `database_url` defaults to a zero-configuration local SQLite
+       instance for developer velocity and CI isolation, while seamlessly supporting
+       PostgreSQL connection pooling for high-concurrency production deployments.
+    3. Thread-Safe Singleton: The cached `get_settings()` accessor ensures configuration
+       parsing occurs exactly once per process lifecycle, preventing redundant disk I/O.
 """
 
 from __future__ import annotations
